@@ -7,6 +7,7 @@ import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 
 from app.config import settings
@@ -52,12 +53,34 @@ app.include_router(reviews.router,    prefix=f"{API_PREFIX}/reviews",    tags=["
 app.include_router(agencies.router,   prefix=f"{API_PREFIX}/agencies",   tags=["Agencies"])
 
 
-# ─── Global error handler (shows real traceback) ─────────────────────────────
+# ─── Global error handlers (shows real tracebacks) ───────────────────────────
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle Pydantic validation errors by returning a 400 with details."""
+    errors = exc.errors()
+    # Format a friendly message from the first error
+    msg = "Validation error"
+    if errors:
+        err = errors[0]
+        loc = " -> ".join(str(x) for x in err.get("loc", []))
+        msg = f"Error in {loc}: {err.get('msg')}"
+    
+    print(f"❌ Validation Error: {msg}")
+    return JSONResponse(
+        status_code=400,
+        content={"detail": msg, "errors": errors}
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     tb = traceback.format_exc()
-    print(tb)
-    return JSONResponse(status_code=500, content={"detail": str(exc), "traceback": tb})
+    print(f"❌ Server Error:\n{tb}")
+    return JSONResponse(
+        status_code=500, 
+        content={"detail": str(exc), "traceback": tb}
+    )
 
 
 # ─── Root / Health check ─────────────────────────────────────────────────────

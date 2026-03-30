@@ -89,9 +89,10 @@ async def register(body: RegisterRequest):
             log.info(f"register: admin.create_user OK → {user_id}")
     except Exception as e:
         err = str(e).lower()
+        log.error(f"register: admin.create_user ERROR: {e}")
         if "already been registered" in err or "already exists" in err or "duplicate" in err:
             raise HTTPException(status_code=400, detail="An account with this email already exists.")
-        log.warning(f"register: admin.create_user failed ({e}), falling back to sign_up")
+        log.warning(f"register: fallback to sign_up...")
 
     # Step 1b: fallback — sign_up then auto-confirm via admin update
     if not user_id:
@@ -108,6 +109,7 @@ async def register(body: RegisterRequest):
                     log.warning(f"register: auto-confirm failed (non-fatal): {ce}")
         except Exception as e:
             err = str(e).lower()
+            log.error(f"register: sign_up ERROR: {e}")
             if "already" in err:
                 raise HTTPException(status_code=400, detail="An account with this email already exists.")
             raise HTTPException(status_code=400, detail=f"Registration failed: {e}")
