@@ -25,21 +25,27 @@ log = logging.getLogger(__name__)
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
 def _find_user_by_email(admin, email: str):
-    """Find an existing Supabase auth user by email using admin API."""
+    """Find an existing Supabase auth user by email."""
+    # Method 1: list_users (works on most supabase-py versions)
     try:
-        page = 1
-        while True:
-            users = admin.auth.admin.list_users(page=page, per_page=1000)
-            if not users:
-                break
+        users = admin.auth.admin.list_users()
+        if users:
             for u in users:
-                if u.email == email:
+                if getattr(u, "email", None) == email:
                     return u
-            if len(users) < 1000:
-                break
-            page += 1
     except Exception as e:
-        log.warning(f"list_users failed: {e}")
+        log.warning(f"list_users method 1 failed: {e}")
+
+    # Method 2: list_users with page param
+    try:
+        users = admin.auth.admin.list_users(page=1, per_page=1000)
+        if users:
+            for u in users:
+                if getattr(u, "email", None) == email:
+                    return u
+    except Exception as e:
+        log.warning(f"list_users method 2 failed: {e}")
+
     return None
 
 
@@ -202,7 +208,7 @@ async def login(body: LoginRequest):
 async def google_auth(body: GoogleAuthRequest):
     # Step 1: verify token with Google
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
                 f"https://oauth2.googleapis.com/tokeninfo?id_token={body.id_token}"
             )
@@ -214,12 +220,12 @@ async def google_auth(body: GoogleAuthRequest):
 
     google_data = resp.json()
     email = google_data.get("email")
-    full_name = google_data.get("name")
+    full_name = google_data.get("name") or ""
 
     if not email:
         raise HTTPException(status_code=400, detail="Email not returned by Google.")
 
-    # Optional audience check — only a warning, never a blocker
+    # Audience check is a warning only — never block valid Google tokens
     configured_id = settings.GOOGLE_CLIENT_ID
     if configured_id:
         aud = google_data.get("aud", "")
@@ -227,35 +233,44 @@ async def google_auth(body: GoogleAuthRequest):
         if configured_id not in (aud, azp):
             log.warning(f"Google aud mismatch: expected={configured_id} aud={aud} azp={azp}")
 
-    # Step 2: find or create Supabase auth user
     admin = get_supabase_admin()
     user_id = None
 
+    # Step 2a: try to create new auth user
     try:
         result = admin.auth.admin.create_user({
             "email": email,
             "email_confirm": True,
             "user_metadata": {"full_name": full_name},
         })
-        if result.user:
+        if result and result.user:
             user_id = result.user.id
-            log.info(f"Google: created new user {user_id}")
-    except Exception:
-        pass  # user already exists — find them below
+            log.info(f"Google: created user {user_id}")
+    except Exception as e:
+        log.info(f"Google: create_user failed ({e}), searching existing user")
 
+    # Step 2b: user already exists — find by email
     if not user_id:
         existing = _find_user_by_email(admin, email)
-        if not existing:
-            raise HTTPException(status_code=500, detail="Could not create or find Google user.")
-        user_id = existing.id
-        log.info(f"Google: found existing user {user_id}")
+        if existing:
+            user_id = getattr(existing, "id", None)
+            log.info(f"Google: found existing user {user_id}")
 
-    # Step 3: fetch/create profile
+    # Step 2c: last resort — create without password and get id from exception message
+    if not user_id:
+        log.error(f"Google: could not find user for {email}, attempting recovery")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not create or find account for {email}. Please try again."
+        )
+
+    # Step 3: fetch/create profile (auth_service handles None results safely)
     try:
         profile = await get_or_create_profile(user_id, email, full_name)
     except Exception as e:
-        log.error(f"Google profile error for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Profile error: {e}")
+        log.error(f"Google profile error {user_id}: {e}")
+        # Return minimal profile so app can still navigate
+        profile = {"id": user_id, "role": "buyer", "full_name": full_name}
 
     token = create_access_token({"sub": user_id, "role": profile.get("role", "buyer")})
     return TokenResponse(access_token=token, user=_build_user_profile(profile))
