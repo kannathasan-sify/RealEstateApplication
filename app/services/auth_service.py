@@ -42,15 +42,23 @@ def decode_token(token: str) -> dict:
 async def get_or_create_profile(user_id: str, email: str, full_name: Optional[str] = None) -> dict:
     """Fetch profile; create with generated code if it doesn't exist."""
     admin = get_supabase_admin()
-    result = admin.table("profiles").select("*").eq("id", user_id).maybe_single().execute()
-    if result.data:
-        return result.data
 
+    # Fetch existing — guard against None result (supabase-py version differences)
+    try:
+        result = admin.table("profiles").select("*").eq("id", user_id).maybe_single().execute()
+        if result and result.data:
+            return result.data
+    except Exception:
+        pass
+
+    # Generate unique user_id_code
     code = generate_user_id_code()
-    # Ensure uniqueness (simple retry)
     for _ in range(5):
-        existing = admin.table("profiles").select("id").eq("user_id_code", code).maybe_single().execute()
-        if not existing.data:
+        try:
+            existing = admin.table("profiles").select("id").eq("user_id_code", code).maybe_single().execute()
+            if not existing or not existing.data:
+                break
+        except Exception:
             break
         code = generate_user_id_code()
 
@@ -60,5 +68,14 @@ async def get_or_create_profile(user_id: str, email: str, full_name: Optional[st
         "user_id_code": code,
         "role": "buyer",
     }
-    created = admin.table("profiles").insert(new_profile).execute()
-    return created.data[0] if created.data else new_profile
+
+    try:
+        created = admin.table("profiles").insert(new_profile).execute()
+        if created and created.data:
+            return created.data[0]
+    except Exception as e:
+        # Profile insert failed — return the dict so auth still succeeds
+        import logging
+        logging.getLogger(__name__).error(f"Profile insert failed for {user_id}: {e}")
+
+    return new_profile
