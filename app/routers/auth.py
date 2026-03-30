@@ -6,6 +6,7 @@ PUT  /me, /me/role
 POST /me/biometric
 """
 
+import logging
 import httpx
 from fastapi import APIRouter, HTTPException, Depends, status
 from app.schemas.auth import (
@@ -18,6 +19,48 @@ from app.middleware.auth_middleware import get_current_user
 from app.config import settings
 
 router = APIRouter()
+log = logging.getLogger(__name__)
+
+
+# ─── helpers ──────────────────────────────────────────────────────────────────
+
+def _find_user_by_email(admin, email: str):
+    """Find an existing Supabase auth user by email using admin API."""
+    try:
+        page = 1
+        while True:
+            users = admin.auth.admin.list_users(page=page, per_page=1000)
+            if not users:
+                break
+            for u in users:
+                if u.email == email:
+                    return u
+            if len(users) < 1000:
+                break
+            page += 1
+    except Exception as e:
+        log.warning(f"list_users failed: {e}")
+    return None
+
+
+def _build_user_profile(profile: dict) -> UserProfile:
+    """Safely build UserProfile, filling missing fields with defaults."""
+    return UserProfile(
+        id=profile.get("id", ""),
+        email=profile.get("email"),
+        full_name=profile.get("full_name"),
+        phone=profile.get("phone"),
+        avatar_url=profile.get("avatar_url"),
+        role=profile.get("role", "buyer"),
+        user_id_code=profile.get("user_id_code"),
+        is_verified=profile.get("is_verified", False),
+        agency_id=profile.get("agency_id"),
+        biometric_enabled=profile.get("biometric_enabled", False),
+        city=profile.get("city", "All Cities"),
+        language=profile.get("language", "English"),
+        created_at=profile.get("created_at"),
+        updated_at=profile.get("updated_at"),
+    )
 
 
 # ─── Register ─────────────────────────────────────────────────────────────────
@@ -25,8 +68,9 @@ router = APIRouter()
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterRequest):
     admin = get_supabase_admin()
+    user_id = None
 
-    # Use admin API so email is auto-confirmed — no confirmation email needed
+    # Step 1a: try admin API (auto-confirms email, no confirmation mail)
     try:
         result = admin.auth.admin.create_user({
             "email": body.email,
@@ -34,23 +78,56 @@ async def register(body: RegisterRequest):
             "email_confirm": True,
             "user_metadata": {"full_name": body.full_name},
         })
+        if result.user:
+            user_id = result.user.id
+            log.info(f"register: admin.create_user OK → {user_id}")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        err = str(e).lower()
+        if "already been registered" in err or "already exists" in err or "duplicate" in err:
+            raise HTTPException(status_code=400, detail="An account with this email already exists.")
+        log.warning(f"register: admin.create_user failed ({e}), falling back to sign_up")
 
-    if not result.user:
-        raise HTTPException(status_code=400, detail="Registration failed")
+    # Step 1b: fallback — sign_up then auto-confirm via admin update
+    if not user_id:
+        try:
+            sb = get_supabase()
+            su = sb.auth.sign_up({"email": body.email, "password": body.password})
+            if su.user:
+                user_id = su.user.id
+                log.info(f"register: sign_up OK → {user_id}")
+                # auto-confirm so login works immediately
+                try:
+                    admin.auth.admin.update_user_by_id(user_id, {"email_confirm": True})
+                except Exception as ce:
+                    log.warning(f"register: auto-confirm failed (non-fatal): {ce}")
+        except Exception as e:
+            err = str(e).lower()
+            if "already" in err:
+                raise HTTPException(status_code=400, detail="An account with this email already exists.")
+            raise HTTPException(status_code=400, detail=f"Registration failed: {e}")
 
-    user_id = result.user.id
-    profile = await get_or_create_profile(user_id, body.email, body.full_name)
+    if not user_id:
+        raise HTTPException(status_code=500, detail="Could not create user account.")
 
-    update_data = {"full_name": body.full_name}
-    if body.phone:
-        update_data["phone"] = body.phone
-    admin.table("profiles").update(update_data).eq("id", user_id).execute()
-    profile.update(update_data)
+    # Step 2: create/fetch profile row
+    try:
+        profile = await get_or_create_profile(user_id, body.email, body.full_name)
+    except Exception as e:
+        log.error(f"register: profile error for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Profile creation failed: {e}")
+
+    # Step 3: persist full_name & phone (non-fatal)
+    try:
+        update_data = {"full_name": body.full_name}
+        if body.phone:
+            update_data["phone"] = body.phone
+        admin.table("profiles").update(update_data).eq("id", user_id).execute()
+        profile.update(update_data)
+    except Exception as e:
+        log.warning(f"register: profile update non-fatal: {e}")
 
     token = create_access_token({"sub": user_id, "role": profile.get("role", "buyer")})
-    return TokenResponse(access_token=token, user=UserProfile(**profile))
+    return TokenResponse(access_token=token, user=_build_user_profile(profile))
 
 
 # ─── Login ────────────────────────────────────────────────────────────────────
@@ -58,128 +135,157 @@ async def register(body: RegisterRequest):
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest):
     if not body.email and not body.user_id_code:
-        raise HTTPException(status_code=400, detail="Provide email or user_id_code")
+        raise HTTPException(status_code=400, detail="Provide email or user_id_code.")
 
     admin = get_supabase_admin()
     email = body.email
 
     # Resolve user_id_code → email
     if body.user_id_code and not body.email:
-        result = (
-            admin.table("profiles")
-            .select("id")
-            .eq("user_id_code", body.user_id_code)
-            .maybe_single()
-            .execute()
-        )
-        if not result.data:
-            raise HTTPException(status_code=404, detail="User ID code not found")
-        # Get auth user email via admin
-        auth_user = admin.auth.admin.get_user_by_id(result.data["id"])
-        if not auth_user.user:
-            raise HTTPException(status_code=404, detail="Auth user not found")
-        email = auth_user.user.email
+        try:
+            result = (
+                admin.table("profiles")
+                .select("id")
+                .eq("user_id_code", body.user_id_code)
+                .maybe_single()
+                .execute()
+            )
+            if not result.data:
+                raise HTTPException(status_code=404, detail="User ID code not found.")
+            auth_user = admin.auth.admin.get_user_by_id(result.data["id"])
+            if not auth_user.user:
+                raise HTTPException(status_code=404, detail="Auth user not found.")
+            email = auth_user.user.email
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"User lookup failed: {e}")
 
+    # Step 1: sign in with Supabase
     sb = get_supabase()
     try:
         result = sb.auth.sign_in_with_password({"email": email, "password": body.password})
     except Exception as e:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        err = str(e).lower()
+        if "email not confirmed" in err:
+            # Auto-confirm the user and retry login
+            try:
+                admin.auth.admin.update_user_by_id(
+                    _find_user_by_email(admin, email).id,
+                    {"email_confirm": True}
+                )
+                result = sb.auth.sign_in_with_password({"email": email, "password": body.password})
+            except Exception as e2:
+                raise HTTPException(status_code=401, detail="Login failed. Please try again.")
+        else:
+            raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     if not result.user:
-        raise HTTPException(status_code=401, detail="Login failed")
+        raise HTTPException(status_code=401, detail="Login failed.")
 
     user_id = result.user.id
-    profile = await get_or_create_profile(user_id, email)
+
+    # Step 2: fetch/create profile
+    try:
+        profile = await get_or_create_profile(user_id, email)
+    except Exception as e:
+        log.error(f"Profile fetch failed for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Profile error: {e}")
 
     token = create_access_token({"sub": user_id, "role": profile.get("role", "buyer")})
-    return TokenResponse(access_token=token, user=UserProfile(**profile))
+    return TokenResponse(access_token=token, user=_build_user_profile(profile))
 
 
 # ─── Google OAuth ─────────────────────────────────────────────────────────────
 
 @router.post("/google", response_model=TokenResponse)
 async def google_auth(body: GoogleAuthRequest):
-    """Exchange Google ID token for an app JWT."""
-    # Verify token with Google's tokeninfo endpoint
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"https://oauth2.googleapis.com/tokeninfo?id_token={body.id_token}"
-        )
+    # Step 1: verify token with Google
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"https://oauth2.googleapis.com/tokeninfo?id_token={body.id_token}"
+            )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Could not reach Google: {e}")
+
     if resp.status_code != 200:
-        raise HTTPException(status_code=401, detail=f"Invalid Google ID token: {resp.text}")
+        raise HTTPException(status_code=401, detail=f"Google token invalid: {resp.text}")
 
     google_data = resp.json()
-
-    # Token already cryptographically verified by Google's tokeninfo endpoint above.
-    # We additionally check the audience only when GOOGLE_CLIENT_ID is explicitly set.
-    # aud = Web client the token was issued for; azp = Android client that requested it.
-    configured_id = settings.GOOGLE_CLIENT_ID
-    if configured_id:
-        token_aud = google_data.get("aud", "")
-        token_azp = google_data.get("azp", "")
-        if configured_id not in (token_aud, token_azp):
-            # Log the mismatch but still accept — token is valid per Google
-            print(f"[WARN] aud mismatch: expected={configured_id} got aud={token_aud} azp={token_azp}")
-
     email = google_data.get("email")
     full_name = google_data.get("name")
+
     if not email:
-        raise HTTPException(status_code=400, detail="Email not available from Google")
+        raise HTTPException(status_code=400, detail="Email not returned by Google.")
 
-    # Use Supabase admin to upsert auth user
+    # Optional audience check — only a warning, never a blocker
+    configured_id = settings.GOOGLE_CLIENT_ID
+    if configured_id:
+        aud = google_data.get("aud", "")
+        azp = google_data.get("azp", "")
+        if configured_id not in (aud, azp):
+            log.warning(f"Google aud mismatch: expected={configured_id} aud={aud} azp={azp}")
+
+    # Step 2: find or create Supabase auth user
     admin = get_supabase_admin()
-    try:
-        auth_result = admin.auth.admin.create_user(
-            {"email": email, "email_confirm": True, "user_metadata": {"full_name": full_name}}
-        )
-        user_id = auth_result.user.id
-    except Exception:
-        # User already exists — find by email
-        users = admin.auth.admin.list_users()
-        user = next((u for u in users if u.email == email), None)
-        if not user:
-            raise HTTPException(status_code=500, detail="Failed to create/find user")
-        user_id = user.id
+    user_id = None
 
-    profile = await get_or_create_profile(user_id, email, full_name)
+    try:
+        result = admin.auth.admin.create_user({
+            "email": email,
+            "email_confirm": True,
+            "user_metadata": {"full_name": full_name},
+        })
+        if result.user:
+            user_id = result.user.id
+            log.info(f"Google: created new user {user_id}")
+    except Exception:
+        pass  # user already exists — find them below
+
+    if not user_id:
+        existing = _find_user_by_email(admin, email)
+        if not existing:
+            raise HTTPException(status_code=500, detail="Could not create or find Google user.")
+        user_id = existing.id
+        log.info(f"Google: found existing user {user_id}")
+
+    # Step 3: fetch/create profile
+    try:
+        profile = await get_or_create_profile(user_id, email, full_name)
+    except Exception as e:
+        log.error(f"Google profile error for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Profile error: {e}")
 
     token = create_access_token({"sub": user_id, "role": profile.get("role", "buyer")})
-    return TokenResponse(access_token=token, user=UserProfile(**profile))
+    return TokenResponse(access_token=token, user=_build_user_profile(profile))
 
 
 # ─── Logout ───────────────────────────────────────────────────────────────────
 
 @router.post("/logout")
 async def logout(current_user: dict = Depends(get_current_user)):
-    """Client-side token deletion. Returns success."""
     return {"message": "Logged out successfully"}
 
 
-# ─── /me GET ─────────────────────────────────────────────────────────────────
+# ─── /me GET ──────────────────────────────────────────────────────────────────
 
 @router.get("/me", response_model=UserProfile)
 async def get_me(current_user: dict = Depends(get_current_user)):
-    return UserProfile(**current_user)
+    return _build_user_profile(current_user)
 
 
-# ─── /me PUT ─────────────────────────────────────────────────────────────────
+# ─── /me PUT ──────────────────────────────────────────────────────────────────
 
 @router.put("/me", response_model=UserProfile)
 async def update_me(body: ProfileUpdate, current_user: dict = Depends(get_current_user)):
     admin = get_supabase_admin()
     update_data = body.model_dump(exclude_none=True)
     if not update_data:
-        return UserProfile(**current_user)
-
-    result = (
-        admin.table("profiles")
-        .update(update_data)
-        .eq("id", current_user["id"])
-        .execute()
-    )
+        return _build_user_profile(current_user)
+    result = admin.table("profiles").update(update_data).eq("id", current_user["id"]).execute()
     updated = result.data[0] if result.data else current_user
-    return UserProfile(**updated)
+    return _build_user_profile(updated)
 
 
 # ─── /me/role PUT ─────────────────────────────────────────────────────────────
@@ -187,14 +293,9 @@ async def update_me(body: ProfileUpdate, current_user: dict = Depends(get_curren
 @router.put("/me/role", response_model=UserProfile)
 async def set_role(body: RoleUpdate, current_user: dict = Depends(get_current_user)):
     admin = get_supabase_admin()
-    result = (
-        admin.table("profiles")
-        .update({"role": body.role})
-        .eq("id", current_user["id"])
-        .execute()
-    )
+    result = admin.table("profiles").update({"role": body.role}).eq("id", current_user["id"]).execute()
     updated = result.data[0] if result.data else {**current_user, "role": body.role}
-    return UserProfile(**updated)
+    return _build_user_profile(updated)
 
 
 # ─── /me/biometric POST ───────────────────────────────────────────────────────
@@ -202,11 +303,6 @@ async def set_role(body: RoleUpdate, current_user: dict = Depends(get_current_us
 @router.post("/me/biometric", response_model=UserProfile)
 async def toggle_biometric(body: BiometricUpdate, current_user: dict = Depends(get_current_user)):
     admin = get_supabase_admin()
-    result = (
-        admin.table("profiles")
-        .update({"biometric_enabled": body.enabled})
-        .eq("id", current_user["id"])
-        .execute()
-    )
+    result = admin.table("profiles").update({"biometric_enabled": body.enabled}).eq("id", current_user["id"]).execute()
     updated = result.data[0] if result.data else {**current_user, "biometric_enabled": body.enabled}
-    return UserProfile(**updated)
+    return _build_user_profile(updated)

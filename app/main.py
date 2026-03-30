@@ -3,7 +3,8 @@ Real Estate App — FastAPI Backend
 main.py — Application entry point
 """
 
-from fastapi import FastAPI
+import traceback
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -49,6 +50,14 @@ app.include_router(saved.router,      prefix=f"{API_PREFIX}/saved",      tags=["
 app.include_router(searches_router,   prefix=f"{API_PREFIX}/searches",   tags=["Saved Searches"])
 app.include_router(reviews.router,    prefix=f"{API_PREFIX}/reviews",    tags=["Reviews"])
 app.include_router(agencies.router,   prefix=f"{API_PREFIX}/agencies",   tags=["Agencies"])
+
+
+# ─── Global error handler (shows real traceback) ─────────────────────────────
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    print(tb)
+    return JSONResponse(status_code=500, content={"detail": str(exc), "traceback": tb})
 
 
 # ─── Root / Health check ─────────────────────────────────────────────────────
