@@ -4,7 +4,7 @@ services/role_service.py — Role-based access control helpers
 
 from fastapi import HTTPException, status
 
-POSTER_ROLES = {"landlord", "agent", "agency", "developer", "admin"}
+POSTER_ROLES = {"landlord", "agent", "agency", "developer", "builder", "admin"}
 ADMIN_ROLES = {"admin"}
 
 

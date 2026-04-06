@@ -67,6 +67,13 @@ class ListedBy(str, Enum):
     agent = "agent"
     agency = "agency"
     developer = "developer"
+    builder = "builder"
+
+
+class ApprovalStatus(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
 
 
 class SortBy(str, Enum):
@@ -103,7 +110,8 @@ class PropertyCreate(BaseModel):
     bathrooms: Optional[int] = None
     area_sqft: Optional[float] = None
     address: Optional[str] = None
-    neighborhood: Optional[str] = None
+    neighborhood: Optional[str] = None   # area/locality within district
+    district: Optional[str] = None        # Tamil Nadu district name
     city: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -121,6 +129,14 @@ class PropertyCreate(BaseModel):
     zone_name: Optional[str] = None
     listed_by: ListedBy = ListedBy.landlord
     agency_id: Optional[str] = None
+
+    # Agent / builder contact info (stored directly on the property)
+    agent_name: Optional[str] = None
+    agent_phone: Optional[str] = None
+    agent_photo: Optional[str] = None
+
+    # Admin approval flow — default PENDING on creation
+    approval_status: ApprovalStatus = ApprovalStatus.pending
 
     @field_validator("amenities")
     @classmethod
@@ -207,7 +223,8 @@ class PropertyResponse(BaseModel):
     bathrooms: Optional[int] = None
     area_sqft: Optional[float] = None
     address: Optional[str] = None
-    neighborhood: Optional[str] = None
+    neighborhood: Optional[str] = None   # area/locality within district
+    district: Optional[str] = None        # Tamil Nadu district name
     city: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -227,6 +244,10 @@ class PropertyResponse(BaseModel):
     is_verified: bool = False
     is_featured: bool = False
     status: str = "active"
+    approval_status: str = "pending"
+    agent_name: Optional[str] = None
+    agent_phone: Optional[str] = None
+    agent_photo: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -248,8 +269,9 @@ class PropertyListResponse(BaseModel):
 class PropertyFilter(BaseModel):
     listing_type: Optional[ListingType] = None
     property_type: Optional[PropertyType] = None
+    district: Optional[str] = None        # Tamil Nadu district filter
     city: Optional[str] = None
-    neighborhood: Optional[str] = None
+    neighborhood: Optional[str] = None   # area/locality within district
     min_price: Optional[float] = None
     max_price: Optional[float] = None
     price_frequency: Optional[PriceFrequency] = None

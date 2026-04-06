@@ -32,9 +32,10 @@ router = APIRouter()
 PROPERTY_FIELDS = (
     "id,owner_id,agency_id,listed_by,title,description,price,price_frequency,"
     "property_type,listing_type,bedrooms,bathrooms,area_sqft,address,neighborhood,"
-    "city,latitude,longitude,images,video_url,amenities,furnishing,completion_status,"
+    "district,city,latitude,longitude,images,video_url,amenities,furnishing,completion_status,"
     "payment_plan,handover_date,developer_name,permit_number,rera_number,reference_id,"
-    "brn_dld,zone_name,is_verified,is_featured,status,created_at,updated_at"
+    "brn_dld,zone_name,is_verified,is_featured,status,approval_status,rejection_reason,"
+    "agent_name,agent_phone,agent_photo,created_at,updated_at"
 )
 
 
@@ -50,9 +51,13 @@ def _apply_filters(query, params: dict):
         query = query.eq("listing_type", params["listing_type"])
     if params.get("property_type"):
         query = query.eq("property_type", params["property_type"])
+    if params.get("district"):
+        # Tamil Nadu district filter (exact match, case-insensitive)
+        query = query.ilike("district", f"%{params['district']}%")
     if params.get("city"):
         query = query.ilike("city", f"%{params['city']}%")
     if params.get("neighborhood"):
+        # area / locality within district
         query = query.ilike("neighborhood", f"%{params['neighborhood']}%")
     if params.get("min_price") is not None:
         query = query.gte("price", params["min_price"])
@@ -102,8 +107,9 @@ def _apply_sort(query, sort_by: str):
 async def list_properties(
     listing_type: Optional[str] = None,
     property_type: Optional[str] = None,
+    district: Optional[str] = None,        # Tamil Nadu district filter
     city: Optional[str] = None,
-    neighborhood: Optional[str] = None,
+    neighborhood: Optional[str] = None,    # area / locality within district
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     price_frequency: Optional[str] = None,
@@ -126,7 +132,11 @@ async def list_properties(
     admin = get_supabase_admin()
     params = {k: v for k, v in locals().items() if k not in ("admin", "page", "limit", "sort_by", "amenities")}
 
-    query = admin.table("properties").select(PROPERTY_FIELDS, count="exact").eq("status", "active")
+    # Public listing: only active + approved properties
+    query = (admin.table("properties")
+             .select(PROPERTY_FIELDS, count="exact")
+             .eq("status", "active")
+             .eq("approval_status", "approved"))
     query = _apply_filters(query, params)
 
     # Amenities overlap filter (PostgreSQL @> operator)
@@ -166,16 +176,21 @@ async def get_featured():
 # ─── Search Autocomplete ──────────────────────────────────────────────────────
 
 @router.get("/search")
-async def search_properties(q: str = Query(..., min_length=1)):
+async def search_properties(
+    q: str = Query(..., min_length=1),
+    district: Optional[str] = None,
+):
     admin = get_supabase_admin()
-    result = (
+    query = (
         admin.table("properties")
-        .select("id,title,city,neighborhood,listing_type,property_type,price")
-        .or_(f"title.ilike.%{q}%,city.ilike.%{q}%,neighborhood.ilike.%{q}%")
+        .select("id,title,district,city,neighborhood,listing_type,property_type,price,images")
+        .or_(f"title.ilike.%{q}%,district.ilike.%{q}%,neighborhood.ilike.%{q}%,city.ilike.%{q}%")
         .eq("status", "active")
-        .limit(10)
-        .execute()
+        .eq("approval_status", "approved")
     )
+    if district:
+        query = query.ilike("district", f"%{district}%")
+    result = query.limit(15).execute()
     return result.data or []
 
 
