@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 
 from app.config import settings
-from app.routers import auth, properties, bookings, saved, reviews, agencies
+from app.routers import auth, properties, bookings, saved, reviews, agencies, admin
 from app.routers.saved import searches_router
 
 
@@ -46,6 +46,7 @@ API_PREFIX = "/api/v1"
 
 app.include_router(auth.router,       prefix=f"{API_PREFIX}/auth",       tags=["Auth"])
 app.include_router(properties.router, prefix=f"{API_PREFIX}/properties", tags=["Properties"])
+app.include_router(admin.router,      prefix=f"{API_PREFIX}/admin",      tags=["Admin"])
 app.include_router(bookings.router,   prefix=f"{API_PREFIX}/bookings",   tags=["Bookings"])
 app.include_router(saved.router,      prefix=f"{API_PREFIX}/saved",      tags=["Saved"])
 app.include_router(searches_router,   prefix=f"{API_PREFIX}/searches",   tags=["Saved Searches"])
