@@ -242,6 +242,29 @@ async def create_property(body: PropertyCreate, current_user: dict = Depends(get
     data["owner_id"] = current_user["id"]
     data["reference_id"] = _generate_reference_id()
 
+    # Auto-populate agent contact fields from the poster's profile row
+    # so every listing has visible contact details even if the client
+    # didn't explicitly provide them (older app versions / PostAdFlow).
+    if not data.get("agent_name") or not data.get("agent_phone"):
+        try:
+            profile_res = (
+                admin.table("profiles")
+                .select("full_name,phone,avatar_url")
+                .eq("id", current_user["id"])
+                .maybe_single()
+                .execute()
+            )
+            if profile_res.data:
+                p = profile_res.data
+                if not data.get("agent_name"):
+                    data["agent_name"] = p.get("full_name") or ""
+                if not data.get("agent_phone"):
+                    data["agent_phone"] = p.get("phone") or ""
+                if not data.get("agent_photo"):
+                    data["agent_photo"] = p.get("avatar_url") or ""
+        except Exception:
+            pass  # non-fatal — listing still saves, agent info just stays blank
+
     result = admin.table("properties").insert(data).execute()
     return PropertyResponse(**result.data[0])
 
