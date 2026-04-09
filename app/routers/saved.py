@@ -60,6 +60,21 @@ async def get_saved_properties(current_user: dict = Depends(get_current_user)):
     return [props_map[pid] for pid in property_ids if pid in props_map]
 
 
+@router.get("/{property_id}/check")
+async def check_saved(property_id: str, current_user: dict = Depends(get_current_user)):
+    """Return {saved: true/false} — lightweight check used by PropertyDetail heart button."""
+    admin = get_supabase_admin()
+    result = (
+        admin.table("saved_properties")
+        .select("id")
+        .eq("user_id", current_user["id"])
+        .eq("property_id", property_id)
+        .maybe_single()
+        .execute()
+    )
+    return {"saved": result.data is not None}
+
+
 @router.post("/{property_id}", status_code=status.HTTP_201_CREATED)
 async def save_property(property_id: str, current_user: dict = Depends(get_current_user)):
     admin = get_supabase_admin()
