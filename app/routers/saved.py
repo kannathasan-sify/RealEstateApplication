@@ -11,25 +11,53 @@ from app.middleware.auth_middleware import get_current_user
 
 router = APIRouter()
 
+# Reuse the same field list used by the properties router
+PROPERTY_FIELDS = (
+    "id,owner_id,agency_id,listed_by,title,description,price,price_frequency,"
+    "property_type,listing_type,bedrooms,bathrooms,area_sqft,address,neighborhood,"
+    "district,city,latitude,longitude,images,video_url,amenities,furnishing,completion_status,"
+    "payment_plan,handover_date,developer_name,permit_number,rera_number,reference_id,"
+    "brn_dld,zone_name,is_verified,is_featured,status,approval_status,rejection_reason,"
+    "agent_name,agent_phone,agent_photo,created_at,updated_at"
+)
+
 
 # ─── Saved Properties ─────────────────────────────────────────────────────────
 
 @router.get("/", response_model=list[PropertyResponse])
 async def get_saved_properties(current_user: dict = Depends(get_current_user)):
     admin = get_supabase_admin()
-    result = (
+
+    # Step 1 — get the ordered list of saved property IDs for this user
+    saved_result = (
         admin.table("saved_properties")
-        .select("property_id, properties(*)")
+        .select("property_id")
         .eq("user_id", current_user["id"])
         .order("created_at", desc=True)
         .execute()
     )
-    properties = []
-    for row in (result.data or []):
-        prop_data = row.get("properties")
-        if prop_data:
-            properties.append(PropertyResponse(**prop_data))
-    return properties
+    property_ids = [row["property_id"] for row in (saved_result.data or [])]
+
+    if not property_ids:
+        return []
+
+    # Step 2 — fetch those properties directly (no unreliable FK join)
+    props_result = (
+        admin.table("properties")
+        .select(PROPERTY_FIELDS)
+        .in_("id", property_ids)
+        .execute()
+    )
+
+    # Build a map and return in saved order (most recently saved first)
+    props_map = {}
+    for p in (props_result.data or []):
+        try:
+            props_map[p["id"]] = PropertyResponse(**p)
+        except Exception:
+            pass  # skip malformed rows
+
+    return [props_map[pid] for pid in property_ids if pid in props_map]
 
 
 @router.post("/{property_id}", status_code=status.HTTP_201_CREATED)
