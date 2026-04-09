@@ -245,6 +245,7 @@ class PropertyResponse(BaseModel):
     is_featured: bool = False
     status: str = "active"
     approval_status: str = "pending"
+    rejection_reason: Optional[str] = None
     agent_name: Optional[str] = None
     agent_phone: Optional[str] = None
     agent_photo: Optional[str] = None

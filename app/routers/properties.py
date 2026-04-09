@@ -156,6 +156,38 @@ async def list_properties(
     )
 
 
+# ─── My Properties (owner's own listings — all approval states) ──────────────
+
+@router.get("/mine", response_model=PropertyListResponse)
+async def get_my_properties(
+    approval_status: Optional[str] = None,   # "pending" | "approved" | "rejected" | None = all
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return properties posted by the authenticated user — regardless of
+    approval status.  Optionally filter by a specific approval_status."""
+    admin = get_supabase_admin()
+    query = (
+        admin.table("properties")
+        .select(PROPERTY_FIELDS, count="exact")
+        .eq("owner_id", current_user["id"])
+        .order("created_at", desc=True)
+    )
+    if approval_status:
+        query = query.eq("approval_status", approval_status)
+
+    offset = (page - 1) * limit
+    result = query.range(offset, offset + limit - 1).execute()
+
+    total = result.count or 0
+    data = [PropertyResponse(**p) for p in (result.data or [])]
+    return PropertyListResponse(
+        data=data, total=total, page=page, limit=limit,
+        has_next=(offset + limit) < total,
+    )
+
+
 # ─── Featured Listings ────────────────────────────────────────────────────────
 
 @router.get("/featured", response_model=list[PropertyResponse])
@@ -198,6 +230,13 @@ async def search_properties(
 
 @router.get("/{property_id}", response_model=PropertyResponse)
 async def get_property(property_id: str):
+    # Guard: reject non-UUID path segments early (e.g. "mine", "featured") so
+    # PostgreSQL never sees an invalid UUID, which would cause an unhandled 500.
+    try:
+        uuid.UUID(property_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Property not found")
+
     admin = get_supabase_admin()
     result = admin.table("properties").select(PROPERTY_FIELDS).eq("id", property_id).maybe_single().execute()
     if not result.data:
@@ -209,6 +248,11 @@ async def get_property(property_id: str):
 
 @router.get("/{property_id}/similar", response_model=list[PropertyResponse])
 async def get_similar(property_id: str):
+    try:
+        uuid.UUID(property_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Property not found")
+
     admin = get_supabase_admin()
     prop = admin.table("properties").select("listing_type,property_type,city,price").eq("id", property_id).maybe_single().execute()
     if not prop.data:
