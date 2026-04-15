@@ -14,7 +14,8 @@ class ListingType(str, Enum):
     rent = "rent"
     sale = "sale"
     off_plan = "off_plan"
-    holiday_stay = "holiday_stay"   # Ground / Holiday Stay listings
+    holiday_stay = "holiday_stay"   # Holiday Stay listings
+    ground = "ground"               # Ground / Sports venue listings
     contractor = "contractor"       # Find a Contractor listings
 
 
@@ -43,6 +44,13 @@ class PropertyType(str, Enum):
     hotel = "hotel"
     resort = "resort"
     room = "room"
+    # ── Ground / Sports venue types ───────────────────────────────────────────
+    cricket_ground = "cricket_ground"
+    football = "football"
+    other_open_ground = "other_open_ground"
+    badminton = "badminton"
+    swimming_pool = "swimming_pool"
+    other_closed_ground = "other_closed_ground"
     # ── Contractor work types ─────────────────────────────────────────────────
     building = "building"
     villa_house = "villa_house"
