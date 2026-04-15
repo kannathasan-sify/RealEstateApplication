@@ -14,9 +14,12 @@ class ListingType(str, Enum):
     rent = "rent"
     sale = "sale"
     off_plan = "off_plan"
+    holiday_stay = "holiday_stay"   # Ground / Holiday Stay listings
+    contractor = "contractor"       # Find a Contractor listings
 
 
 class PropertyType(str, Enum):
+    # ── Residential ───────────────────────────────────────────────────────────
     apartment = "apartment"
     villa = "villa"
     townhouse = "townhouse"
@@ -25,6 +28,7 @@ class PropertyType(str, Enum):
     residential_building = "residential_building"
     villa_compound = "villa_compound"
     residential_floor = "residential_floor"
+    # ── Commercial ────────────────────────────────────────────────────────────
     office = "office"
     shop = "shop"
     warehouse = "warehouse"
@@ -35,6 +39,20 @@ class PropertyType(str, Enum):
     land = "land"
     industrial_land = "industrial_land"
     factory = "factory"
+    # ── Holiday Stay types ────────────────────────────────────────────────────
+    hotel = "hotel"
+    resort = "resort"
+    room = "room"
+    # ── Contractor work types ─────────────────────────────────────────────────
+    building = "building"
+    villa_house = "villa_house"
+    interior_fitout = "interior_fitout"
+    civil_work = "civil_work"
+    painting_work = "painting_work"
+    air_conditioning = "air_conditioning"
+    plumbing = "plumbing"
+    household_equipment = "household_equipment"
+    # ── Generic ───────────────────────────────────────────────────────────────
     other = "other"
 
 
@@ -68,6 +86,9 @@ class ListedBy(str, Enum):
     agency = "agency"
     developer = "developer"
     builder = "builder"
+    individual = "individual"   # contractor posted by an individual
+    company = "company"         # contractor posted by a company
+    owner = "owner"             # holiday stay owner
 
 
 class ApprovalStatus(str, Enum):
@@ -135,6 +156,9 @@ class PropertyCreate(BaseModel):
     agent_phone: Optional[str] = None
     agent_photo: Optional[str] = None
 
+    # WhatsApp number — required for landlord listings, optional for agents/builders
+    whatsapp_number: Optional[str] = None
+
     # Admin approval flow — default PENDING on creation
     approval_status: ApprovalStatus = ApprovalStatus.pending
 
@@ -150,9 +174,15 @@ class PropertyCreate(BaseModel):
     @field_validator("images")
     @classmethod
     def validate_images(cls, v: List[str]) -> List[str]:
-        if v and len(v) > 20:
-            raise ValueError("Maximum 20 images allowed")
+        if v and len(v) > 6:
+            raise ValueError("Maximum 6 images allowed per property")
         return v
+
+    @model_validator(mode="after")
+    def validate_landlord_whatsapp(self) -> "PropertyCreate":
+        if self.listed_by == ListedBy.landlord and not self.whatsapp_number:
+            raise ValueError("WhatsApp number is required for landlord listings")
+        return self
 
 
 class PropertyUpdate(BaseModel):
@@ -249,6 +279,7 @@ class PropertyResponse(BaseModel):
     agent_name: Optional[str] = None
     agent_phone: Optional[str] = None
     agent_photo: Optional[str] = None
+    whatsapp_number: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

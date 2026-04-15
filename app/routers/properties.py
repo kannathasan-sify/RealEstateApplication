@@ -35,8 +35,12 @@ PROPERTY_FIELDS = (
     "district,city,latitude,longitude,images,video_url,amenities,furnishing,completion_status,"
     "payment_plan,handover_date,developer_name,permit_number,rera_number,reference_id,"
     "brn_dld,zone_name,is_verified,is_featured,status,approval_status,rejection_reason,"
-    "agent_name,agent_phone,agent_photo,created_at,updated_at"
+    "agent_name,agent_phone,agent_photo,whatsapp_number,created_at,updated_at"
 )
+
+# Image limits per property
+MIN_IMAGES = 2
+MAX_IMAGES = 6
 
 
 def _generate_reference_id() -> str:
@@ -293,7 +297,7 @@ async def create_property(body: PropertyCreate, current_user: dict = Depends(get
         try:
             profile_res = (
                 admin.table("profiles")
-                .select("full_name,phone,avatar_url")
+                .select("full_name,phone,avatar_url,whatsapp_number")
                 .eq("id", current_user["id"])
                 .maybe_single()
                 .execute()
@@ -306,8 +310,11 @@ async def create_property(body: PropertyCreate, current_user: dict = Depends(get
                     data["agent_phone"] = p.get("phone") or ""
                 if not data.get("agent_photo"):
                     data["agent_photo"] = p.get("avatar_url") or ""
+                # For landlord listings, fall back to profile whatsapp if not provided
+                if data.get("listed_by") == "landlord" and not data.get("whatsapp_number"):
+                    data["whatsapp_number"] = p.get("whatsapp_number") or p.get("phone") or ""
         except Exception:
-            pass  # non-fatal — listing still saves, agent info just stays blank
+            pass  # non-fatal — listing still saves, contact info just stays blank
 
     result = admin.table("properties").insert(data).execute()
     return PropertyResponse(**result.data[0])
@@ -359,8 +366,21 @@ async def upload_images(
     files: List[UploadFile] = File(...),
     current_user: dict = Depends(get_current_user),
 ):
-    if len(files) > 20:
-        raise HTTPException(status_code=400, detail="Maximum 20 images allowed")
+    """Upload images for a property.
+    - Minimum 2 images required per property.
+    - Maximum 6 images allowed per property (across all upload calls).
+    - Images are stored in Supabase Storage under property-images/{owner_id}/{property_id}/.
+    """
+    if len(files) < MIN_IMAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Minimum {MIN_IMAGES} images are required per property listing"
+        )
+    if len(files) > MAX_IMAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {MAX_IMAGES} images allowed per property"
+        )
 
     admin = get_supabase_admin()
     existing = admin.table("properties").select("owner_id,images").eq("id", property_id).maybe_single().execute()
@@ -371,16 +391,27 @@ async def upload_images(
         raise HTTPException(status_code=403, detail="Not the property owner")
 
     current_images: List[str] = existing.data.get("images") or []
-    new_urls: List[str] = []
+    total_after = len(current_images) + len(files)
+    if total_after > MAX_IMAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This property already has {len(current_images)} image(s). "
+                   f"Adding {len(files)} more would exceed the {MAX_IMAGES}-image limit."
+        )
 
+    new_urls: List[str] = []
     for upload in files:
-        if len(current_images) + len(new_urls) >= 20:
-            break
         content = await upload.read()
-        url = await upload_property_image(content, upload.content_type or "image/jpeg", current_user["id"])
+        # Store images per-property: property-images/{owner_id}/{property_id}/{uuid}.ext
+        url = await upload_property_image(
+            content,
+            upload.content_type or "image/jpeg",
+            current_user["id"],
+            property_id=property_id,
+        )
         new_urls.append(url)
 
-    all_images = (current_images + new_urls)[:20]
+    all_images = current_images + new_urls
     result = (
         admin.table("properties")
         .update({"images": all_images, "updated_at": datetime.utcnow().isoformat()})

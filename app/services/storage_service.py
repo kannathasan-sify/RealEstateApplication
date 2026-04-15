@@ -10,11 +10,26 @@ PROPERTIES_BUCKET = "property-images"
 AVATARS_BUCKET = "avatars"
 
 
-async def upload_property_image(file_bytes: bytes, content_type: str, owner_id: str) -> str:
-    """Upload a property image and return its public URL."""
+async def upload_property_image(
+    file_bytes: bytes,
+    content_type: str,
+    owner_id: str,
+    property_id: str | None = None,
+) -> str:
+    """Upload a property image and return its public URL.
+
+    Images are stored property-wise:
+        property-images/{owner_id}/{property_id}/{uuid}.{ext}
+
+    If property_id is not provided (legacy call), falls back to:
+        property-images/{owner_id}/{uuid}.{ext}
+    """
     admin = get_supabase_admin()
     extension = content_type.split("/")[-1] if "/" in content_type else "jpg"
-    path = f"{owner_id}/{uuid.uuid4()}.{extension}"
+    if property_id:
+        path = f"{owner_id}/{property_id}/{uuid.uuid4()}.{extension}"
+    else:
+        path = f"{owner_id}/{uuid.uuid4()}.{extension}"
     admin.storage.from_(PROPERTIES_BUCKET).upload(
         path, file_bytes, {"content-type": content_type}
     )
