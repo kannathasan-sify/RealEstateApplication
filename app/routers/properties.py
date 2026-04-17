@@ -35,7 +35,9 @@ PROPERTY_FIELDS = (
     "district,city,latitude,longitude,images,video_url,amenities,furnishing,completion_status,"
     "payment_plan,handover_date,developer_name,permit_number,rera_number,reference_id,"
     "brn_dld,zone_name,is_verified,is_featured,status,approval_status,rejection_reason,"
-    "agent_name,agent_phone,agent_photo,whatsapp_number,created_at,updated_at"
+    "agent_name,agent_phone,agent_photo,whatsapp_number,"
+    "metadata,"           # JSONB — category-specific extra fields (Ground/Contractor/HolidayStay)
+    "created_at,updated_at"
 )
 
 # Image limits per property
@@ -92,6 +94,15 @@ def _apply_filters(query, params: dict):
     if params.get("keyword"):
         kw = params["keyword"]
         query = query.or_(f"title.ilike.%{kw}%,description.ilike.%{kw}%,neighborhood.ilike.%{kw}%")
+    # ── Category-specific metadata JSONB filters ──────────────────────────────
+    # Uses PostgreSQL @> containment operator on the metadata JSONB column.
+    # e.g. metadata @> '{"ground_type":"cricket"}'
+    if params.get("ground_type"):
+        query = query.contains("metadata", {"ground_type": params["ground_type"]})
+    if params.get("work_category"):
+        query = query.contains("metadata", {"work_category": params["work_category"]})
+    if params.get("stay_type"):
+        query = query.contains("metadata", {"stay_type": params["stay_type"]})
     return query
 
 
@@ -132,6 +143,10 @@ async def list_properties(
     sort_by: SortBy = SortBy.newest,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    # ── Category-specific metadata filters ───────────────────────────────────
+    ground_type:   Optional[str] = None,   # e.g. cricket | football | swimming_pool
+    work_category: Optional[str] = None,   # construction | maintenance
+    stay_type:     Optional[str] = None,   # entire_home | villa | resort | private_room
 ):
     admin = get_supabase_admin()
     params = {k: v for k, v in locals().items() if k not in ("admin", "page", "limit", "sort_by", "amenities")}

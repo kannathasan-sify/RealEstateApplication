@@ -2,7 +2,7 @@
 schemas/property.py — Property-related Pydantic schemas
 """
 
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import date, datetime
 from pydantic import BaseModel, field_validator, model_validator
 from enum import Enum
@@ -167,6 +167,13 @@ class PropertyCreate(BaseModel):
     # WhatsApp number — required for landlord listings, optional for agents/builders
     whatsapp_number: Optional[str] = None
 
+    # Category-specific extra fields (Ground / Contractor / Holiday Stay)
+    # Stored as JSONB metadata column; key examples:
+    #   ground      → ground_type, surface, length_m, width_m, capacity, facilities
+    #   contractor  → work_category, work_types, experience_yrs, team_size, pricing_model
+    #   holiday_stay → stay_type, max_guests, check_in, check_out, min_nights
+    metadata: Optional[Dict[str, str]] = None
+
     # Admin approval flow — default PENDING on creation
     approval_status: ApprovalStatus = ApprovalStatus.pending
 
@@ -188,8 +195,25 @@ class PropertyCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_landlord_whatsapp(self) -> "PropertyCreate":
-        if self.listed_by == ListedBy.landlord and not self.whatsapp_number:
-            raise ValueError("WhatsApp number is required for landlord listings")
+        # Landlord property listings require WhatsApp (skip for Ground — no WhatsApp needed)
+        # Contractor profiles always require WhatsApp for direct contact
+        is_landlord_property = (
+            self.listed_by == ListedBy.landlord
+            and self.listing_type not in (ListingType.ground,)
+        )
+        is_contractor = self.listing_type == ListingType.contractor
+        if (is_landlord_property or is_contractor) and not self.whatsapp_number:
+            who = "contractor" if is_contractor else "landlord"
+            raise ValueError(f"WhatsApp number is required for {who} listings")
+        return self
+
+    @model_validator(mode="after")
+    def validate_category_metadata(self) -> "PropertyCreate":
+        """Ensure critical category-specific fields are present in metadata."""
+        if self.listing_type == ListingType.ground:
+            meta = self.metadata or {}
+            if not meta.get("ground_type"):
+                raise ValueError("metadata.ground_type is required for Ground listings")
         return self
 
 
@@ -219,6 +243,8 @@ class PropertyUpdate(BaseModel):
     permit_number: Optional[str] = None
     rera_number: Optional[str] = None
     status: Optional[PropertyStatus] = None
+    # Allow updating category-specific metadata (e.g. after editing a Ground / Contractor ad)
+    metadata: Optional[Dict[str, str]] = None
 
     @field_validator("amenities")
     @classmethod
@@ -288,6 +314,8 @@ class PropertyResponse(BaseModel):
     agent_phone: Optional[str] = None
     agent_photo: Optional[str] = None
     whatsapp_number: Optional[str] = None
+    # Category-specific extra fields (null for standard property listings)
+    metadata: Optional[Dict[str, str]] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -330,3 +358,10 @@ class PropertyFilter(BaseModel):
     sort_by: SortBy = SortBy.newest
     page: int = 1
     limit: int = 20
+    # ── Category-specific metadata filters ────────────────────────────────────
+    # Filter Ground listings by sport type (e.g. ground_type=cricket)
+    ground_type:     Optional[str] = None
+    # Filter Contractor listings by work category (construction / maintenance)
+    work_category:   Optional[str] = None
+    # Filter Holiday Stay listings by type (entire_home / villa / resort / etc.)
+    stay_type:       Optional[str] = None
