@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from app.config import settings
 from app.routers import auth, properties, bookings, saved, reviews, agencies, admin
 from app.routers.saved import searches_router
+from app.routers import ad_interests, ad_analytics
 
 
 @asynccontextmanager
@@ -50,8 +51,10 @@ app.include_router(admin.router,      prefix=f"{API_PREFIX}/admin",      tags=["
 app.include_router(bookings.router,   prefix=f"{API_PREFIX}/bookings",   tags=["Bookings"])
 app.include_router(saved.router,      prefix=f"{API_PREFIX}/saved",      tags=["Saved"])
 app.include_router(searches_router,   prefix=f"{API_PREFIX}/searches",   tags=["Saved Searches"])
-app.include_router(reviews.router,    prefix=f"{API_PREFIX}/reviews",    tags=["Reviews"])
-app.include_router(agencies.router,   prefix=f"{API_PREFIX}/agencies",   tags=["Agencies"])
+app.include_router(reviews.router,        prefix=f"{API_PREFIX}/reviews",       tags=["Reviews"])
+app.include_router(agencies.router,       prefix=f"{API_PREFIX}/agencies",      tags=["Agencies"])
+app.include_router(ad_interests.router,   prefix=f"{API_PREFIX}/ads",           tags=["Ad Interests"])
+app.include_router(ad_analytics.router,  prefix=f"{API_PREFIX}/ads/analytics",  tags=["Ad Analytics"])
 
 
 # ─── Global error handlers (shows real tracebacks) ───────────────────────────
