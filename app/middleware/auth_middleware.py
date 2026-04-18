@@ -55,3 +55,20 @@ async def get_optional_user(
         return await get_current_user(credentials)
     except HTTPException:
         return None
+
+
+# Alias used by ad_analytics.py
+get_current_user_optional = get_optional_user
+
+
+async def require_admin(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Dependency that ensures the authenticated user has the 'admin' role.
+    Raises 403 Forbidden for any other role."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
