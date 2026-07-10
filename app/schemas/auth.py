@@ -63,6 +63,8 @@ class UserProfile(BaseModel):
     biometric_enabled: bool = False
     city: str = "All Cities"
     language: str = "English"
+    subscription_tier: str = "free"
+    subscription_expires_at: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

@@ -29,26 +29,39 @@ from app.middleware.auth_middleware import get_current_user, get_optional_user
 
 router = APIRouter()
 
+import math
+
 PROPERTY_FIELDS = (
     "id,owner_id,agency_id,listed_by,title,description,price,price_frequency,"
-    "property_type,listing_type,bedrooms,bathrooms,area_sqft,address,neighborhood,"
-    "district,city,latitude,longitude,images,video_url,amenities,furnishing,completion_status,"
+    "property_type,listing_type,bedrooms,bathrooms,area_sqft,rate_per_sqft,"
+    "address,neighborhood,district,city,latitude,longitude,"
+    "images,video_url,youtube_url,instagram_url,"
+    "amenities,furnishing,completion_status,"
     "payment_plan,handover_date,developer_name,permit_number,rera_number,reference_id,"
     "brn_dld,zone_name,is_verified,is_featured,status,approval_status,rejection_reason,"
     "agent_name,agent_phone,agent_photo,whatsapp_number,"
-    "metadata,"           # JSONB — category-specific extra fields (Ground/Contractor/HolidayStay)
-    "created_at,updated_at"
+    "deposit,availability_date,"
+    "nearby_schools,nearby_hospitals,document_urls,"
+    "company_profile,previous_projects,rating_avg,rating_count,"
+    "metadata,created_at,updated_at"
 )
 
 # Image limits per property
 MIN_IMAGES = 2
-MAX_IMAGES = 6
+MAX_IMAGES = 10
 
 
 def _generate_reference_id() -> str:
     chars = string.ascii_uppercase + string.digits
     rand = "".join(random.choices(chars, k=5))
     return f"RE-S-{rand}"
+
+
+def _lat_lng_bounds(lat: float, lng: float, radius_km: int):
+    """Return (lat_min, lat_max, lng_min, lng_max) bounding box for radius search."""
+    delta_lat = radius_km / 111.0
+    delta_lng = radius_km / (111.0 * math.cos(math.radians(lat)))
+    return lat - delta_lat, lat + delta_lat, lng - delta_lng, lng + delta_lng
 
 
 def _apply_filters(query, params: dict):
@@ -58,12 +71,10 @@ def _apply_filters(query, params: dict):
     if params.get("property_type"):
         query = query.eq("property_type", params["property_type"])
     if params.get("district"):
-        # Tamil Nadu district filter (exact match, case-insensitive)
         query = query.ilike("district", f"%{params['district']}%")
     if params.get("city"):
         query = query.ilike("city", f"%{params['city']}%")
     if params.get("neighborhood"):
-        # area / locality within district
         query = query.ilike("neighborhood", f"%{params['neighborhood']}%")
     if params.get("min_price") is not None:
         query = query.gte("price", params["min_price"])
@@ -94,13 +105,24 @@ def _apply_filters(query, params: dict):
     if params.get("keyword"):
         kw = params["keyword"]
         query = query.or_(f"title.ilike.%{kw}%,description.ilike.%{kw}%,neighborhood.ilike.%{kw}%")
+    # ── Bounding-box radius filter ────────────────────────────────────────────
+    center_lat = params.get("center_lat")
+    center_lng = params.get("center_lng")
+    radius_km  = params.get("radius_km")
+    if center_lat is not None and center_lng is not None and radius_km:
+        lat_min, lat_max, lng_min, lng_max = _lat_lng_bounds(center_lat, center_lng, radius_km)
+        query = (query
+                 .gte("latitude", lat_min).lte("latitude", lat_max)
+                 .gte("longitude", lng_min).lte("longitude", lng_max))
     # ── Category-specific metadata JSONB filters ──────────────────────────────
-    # Uses PostgreSQL @> containment operator on the metadata JSONB column.
-    # e.g. metadata @> '{"ground_type":"cricket"}'
     if params.get("ground_type"):
         query = query.contains("metadata", {"ground_type": params["ground_type"]})
     if params.get("work_category"):
         query = query.contains("metadata", {"work_category": params["work_category"]})
+    if params.get("contractor_type"):
+        query = query.contains("metadata", {"contractor_type": params["contractor_type"]})
+    if params.get("service_type"):
+        query = query.contains("metadata", {"service_type": params["service_type"]})
     if params.get("stay_type"):
         query = query.contains("metadata", {"stay_type": params["stay_type"]})
     return query
@@ -120,35 +142,41 @@ def _apply_sort(query, sort_by: str):
 
 @router.get("/", response_model=PropertyListResponse)
 async def list_properties(
-    listing_type: Optional[str] = None,
-    property_type: Optional[str] = None,
-    district: Optional[str] = None,        # Tamil Nadu district filter
-    city: Optional[str] = None,
-    neighborhood: Optional[str] = None,    # area / locality within district
-    min_price: Optional[float] = None,
-    max_price: Optional[float] = None,
-    price_frequency: Optional[str] = None,
-    bedrooms: Optional[int] = None,
-    bathrooms: Optional[int] = None,
-    min_area: Optional[float] = None,
-    max_area: Optional[float] = None,
-    furnishing: Optional[str] = None,
-    completion_status: Optional[str] = None,
-    amenities: Optional[List[str]] = Query(None),
-    keyword: Optional[str] = None,
-    listed_by: Optional[str] = None,
-    agency_id: Optional[str] = None,
-    verified_only: bool = False,
-    has_video: bool = False,
-    sort_by: SortBy = SortBy.newest,
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
-    # ── Category-specific metadata filters ───────────────────────────────────
-    ground_type:   Optional[str] = None,   # e.g. cricket | football | swimming_pool
-    work_category: Optional[str] = None,   # construction | maintenance
-    stay_type:     Optional[str] = None,   # entire_home | villa | resort | private_room
+    listing_type:      Optional[str]   = None,
+    property_type:     Optional[str]   = None,
+    district:          Optional[str]   = None,
+    city:              Optional[str]   = None,
+    neighborhood:      Optional[str]   = None,
+    min_price:         Optional[float] = None,
+    max_price:         Optional[float] = None,
+    price_frequency:   Optional[str]   = None,
+    bedrooms:          Optional[int]   = None,
+    bathrooms:         Optional[int]   = None,
+    min_area:          Optional[float] = None,
+    max_area:          Optional[float] = None,
+    furnishing:        Optional[str]   = None,
+    completion_status: Optional[str]   = None,
+    amenities:         Optional[List[str]] = Query(None),
+    keyword:           Optional[str]   = None,
+    listed_by:         Optional[str]   = None,
+    agency_id:         Optional[str]   = None,
+    verified_only:     bool            = False,
+    has_video:         bool            = False,
+    sort_by:           SortBy          = SortBy.newest,
+    page:              int             = Query(1, ge=1),
+    limit:             int             = Query(20, ge=1, le=100),
+    # ── Location radius filter (bounding box, no PostGIS required) ─────────
+    center_lat:        Optional[float] = None,
+    center_lng:        Optional[float] = None,
+    radius_km:         Optional[int]   = None,   # 10 | 50 | 100
+    # ── Category-specific metadata filters ─────────────────────────────────
+    ground_type:       Optional[str]   = None,   # cricket | football | ...
+    work_category:     Optional[str]   = None,   # construction | maintenance
+    contractor_type:   Optional[str]   = None,   # civil_contractor | architect | ...
+    service_type:      Optional[str]   = None,   # electrician | plumber | ...
+    stay_type:         Optional[str]   = None,   # entire_home | villa | ...
 ):
-    admin = get_supabase_admin()
+    admin  = get_supabase_admin()
     params = {k: v for k, v in locals().items() if k not in ("admin", "page", "limit", "sort_by", "amenities")}
 
     # Public listing: only active + approved properties
@@ -168,7 +196,7 @@ async def list_properties(
     result = query.range(offset, offset + limit - 1).execute()
 
     total = result.count or 0
-    data = [PropertyResponse(**p) for p in (result.data or [])]
+    data  = [PropertyResponse(**p) for p in (result.data or [])]
     return PropertyListResponse(
         data=data, total=total, page=page, limit=limit,
         has_next=(offset + limit) < total,
@@ -301,6 +329,29 @@ async def create_property(body: PropertyCreate, current_user: dict = Depends(get
         raise HTTPException(status_code=403, detail="Only landlord/agent/agency/developer can post listings")
 
     admin = get_supabase_admin()
+    
+    # ── Subscription limits check ────────────────────────────────────────────
+    tier = current_user.get("subscription_tier", "free") or "free"
+    max_listings = 3 if tier == "free" else (10 if tier == "silver" else 99999)
+    try:
+        existing_res = admin.table("properties").select("id").eq("owner_id", current_user["id"]).execute()
+        current_listings = len(existing_res.data) if existing_res.data else 0
+    except Exception:
+        current_listings = 0
+        
+    if current_listings >= max_listings:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Listing limit reached. Your current plan '{tier.capitalize()}' allows up to {max_listings} active listings. Please upgrade your subscription plan."
+        )
+
+    max_images = 10 if tier == "free" else 20
+    if body.images and len(body.images) > max_images:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Too many images. Your current plan '{tier.capitalize()}' allows up to {max_images} images per listing."
+        )
+
     data = body.model_dump(mode="json")
     data["owner_id"] = current_user["id"]
     data["reference_id"] = _generate_reference_id()

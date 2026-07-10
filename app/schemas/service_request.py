@@ -1,0 +1,92 @@
+"""
+schemas/service_request.py — Service Request & Quotation schemas
+
+Service Requests are posted by property owners/users who need:
+  - Construction work (Build your Property)
+  - Maintenance work  (Maintain Your Property)
+
+Nearby contractors/service providers receive the request and can send quotations.
+"""
+
+from typing import Optional, List
+from datetime import datetime
+from pydantic import BaseModel
+from enum import Enum
+
+
+# ─── Enums ───────────────────────────────────────────────────────────────────
+
+class ServiceCategory(str, Enum):
+    construction = "construction"   # e.g. "I need a house plan + construction"
+    maintenance  = "maintenance"    # e.g. "My apartment needs painting"
+
+
+class RequestStatus(str, Enum):
+    open        = "open"         # accepting quotations
+    in_progress = "in_progress"  # contractor assigned
+    completed   = "completed"
+    cancelled   = "cancelled"
+
+
+class QuotationStatus(str, Enum):
+    pending  = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
+
+
+# ─── Service Request schemas ──────────────────────────────────────────────────
+
+class ServiceRequestCreate(BaseModel):
+    category:     ServiceCategory
+    service_type: str                    # e.g. "architect", "painting", "plumbing"
+    title:        str                    # short description of need
+    description:  Optional[str]  = None # detailed description
+    district:     str                    # Tamil Nadu district — for nearby matching
+    latitude:     Optional[float] = None
+    longitude:    Optional[float] = None
+    radius_km:    int             = 50   # search radius for contractor matching
+    budget_min:   Optional[float] = None
+    budget_max:   Optional[float] = None
+    images:       Optional[List[str]] = []  # photos of the site / project
+
+
+class ServiceRequestResponse(BaseModel):
+    id:           str
+    user_id:      str
+    category:     str
+    service_type: str
+    title:        str
+    description:  Optional[str]   = None
+    district:     str
+    latitude:     Optional[float] = None
+    longitude:    Optional[float] = None
+    radius_km:    int             = 50
+    budget_min:   Optional[float] = None
+    budget_max:   Optional[float] = None
+    images:       Optional[List[str]] = []
+    status:       str             = "open"
+    created_at:   Optional[str]   = None
+    # Joined
+    quotation_count: int          = 0
+
+
+# ─── Quotation schemas ────────────────────────────────────────────────────────
+
+class QuotationCreate(BaseModel):
+    request_id:    str
+    property_id:   Optional[str] = None  # contractor's listing ID (optional)
+    amount:        Optional[float] = None
+    timeline:      Optional[str]   = None  # e.g. "2–4 weeks"
+    notes:         Optional[str]   = None
+
+
+class QuotationResponse(BaseModel):
+    id:            str
+    request_id:    str
+    contractor_id: str
+    property_id:   Optional[str]  = None
+    amount:        Optional[float] = None
+    timeline:      Optional[str]   = None
+    notes:         Optional[str]   = None
+    status:        str             = "pending"
+    created_at:    Optional[str]   = None

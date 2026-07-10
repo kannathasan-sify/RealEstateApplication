@@ -14,6 +14,9 @@ from app.config import settings
 from app.routers import auth, properties, bookings, saved, reviews, agencies, admin
 from app.routers.saved import searches_router
 from app.routers import ad_interests, ad_analytics
+from app.routers import service_requests
+from app.routers import subscriptions
+from app.routers import support
 
 
 @asynccontextmanager
@@ -26,8 +29,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Real Estate App API",
-    description="Backend API for the Real Estate App — Dubizzle-style property marketplace",
-    version="1.0.0",
+    description=(
+        "Backend API for the Real Estate App — 4 modules: "
+        "Buy (Property Sales), Rent, Construction Services, Maintenance Services"
+    ),
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -45,16 +51,19 @@ app.add_middleware(
 # ─── Routers ─────────────────────────────────────────────────────────────────
 API_PREFIX = "/api/v1"
 
-app.include_router(auth.router,       prefix=f"{API_PREFIX}/auth",       tags=["Auth"])
-app.include_router(properties.router, prefix=f"{API_PREFIX}/properties", tags=["Properties"])
-app.include_router(admin.router,      prefix=f"{API_PREFIX}/admin",      tags=["Admin"])
-app.include_router(bookings.router,   prefix=f"{API_PREFIX}/bookings",   tags=["Bookings"])
-app.include_router(saved.router,      prefix=f"{API_PREFIX}/saved",      tags=["Saved"])
-app.include_router(searches_router,   prefix=f"{API_PREFIX}/searches",   tags=["Saved Searches"])
-app.include_router(reviews.router,        prefix=f"{API_PREFIX}/reviews",       tags=["Reviews"])
-app.include_router(agencies.router,       prefix=f"{API_PREFIX}/agencies",      tags=["Agencies"])
-app.include_router(ad_interests.router,   prefix=f"{API_PREFIX}/ads",           tags=["Ad Interests"])
-app.include_router(ad_analytics.router,  prefix=f"{API_PREFIX}/ads/analytics",  tags=["Ad Analytics"])
+app.include_router(auth.router,             prefix=f"{API_PREFIX}/auth",            tags=["Auth"])
+app.include_router(properties.router,       prefix=f"{API_PREFIX}/properties",      tags=["Properties"])
+app.include_router(admin.router,            prefix=f"{API_PREFIX}/admin",           tags=["Admin"])
+app.include_router(bookings.router,         prefix=f"{API_PREFIX}/bookings",        tags=["Bookings"])
+app.include_router(saved.router,            prefix=f"{API_PREFIX}/saved",           tags=["Saved"])
+app.include_router(searches_router,         prefix=f"{API_PREFIX}/searches",        tags=["Saved Searches"])
+app.include_router(reviews.router,          prefix=f"{API_PREFIX}/reviews",         tags=["Reviews"])
+app.include_router(agencies.router,         prefix=f"{API_PREFIX}/agencies",        tags=["Agencies"])
+app.include_router(ad_interests.router,     prefix=f"{API_PREFIX}/ads",             tags=["Ad Interests"])
+app.include_router(ad_analytics.router,     prefix=f"{API_PREFIX}/ads/analytics",   tags=["Ad Analytics"])
+app.include_router(service_requests.router, prefix=f"{API_PREFIX}/service-requests",tags=["Service Requests"])
+app.include_router(subscriptions.router,    prefix=f"{API_PREFIX}/subscriptions",   tags=["Subscriptions"])
+app.include_router(support.router,          prefix=f"{API_PREFIX}/support",         tags=["Support"])
 
 
 # ─── Global error handlers (shows real tracebacks) ───────────────────────────
