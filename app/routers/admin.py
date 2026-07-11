@@ -200,7 +200,18 @@ async def list_users(
         query = query.eq("is_verified", is_verified)
         
     result = query.execute()
-    return result.data or []
+    profiles = result.data or []
+    
+    if profiles:
+        try:
+            auth_users = admin_client.auth.admin.list_users()
+            email_map = {u.id: u.email for u in auth_users}
+            for p in profiles:
+                p["email"] = email_map.get(p["id"])
+        except Exception:
+            pass
+            
+    return profiles
 
 
 @router.patch("/users/{user_id}/verify")
@@ -275,11 +286,26 @@ async def list_payments(
     admin_client = get_supabase_admin()
     result = (
         admin_client.table("payments")
-        .select("*, profiles(full_name, email)")
+        .select("*, profiles(full_name)")
         .order("created_at", desc=True)
         .execute()
     )
-    return result.data or []
+    payments = result.data or []
+    
+    if payments:
+        try:
+            auth_users = admin_client.auth.admin.list_users()
+            email_map = {u.id: u.email for u in auth_users}
+            for p in payments:
+                u_id = p.get("user_id")
+                if "profiles" in p and p["profiles"]:
+                    p["profiles"]["email"] = email_map.get(u_id)
+                else:
+                    p["profiles"] = {"full_name": None, "email": email_map.get(u_id)}
+        except Exception:
+            pass
+            
+    return payments
 
 
 # ── Support & Complaints Management ──────────────────────────────────────────
@@ -298,12 +324,27 @@ async def list_tickets(
         raise HTTPException(status_code=403, detail="Admin access required")
         
     admin_client = get_supabase_admin()
-    query = admin_client.table("support_tickets").select("*, profiles(full_name, email)")
+    query = admin_client.table("support_tickets").select("*, profiles(full_name)")
     if status:
         query = query.eq("status", status)
     
     result = query.order("created_at", desc=True).execute()
-    return result.data or []
+    tickets = result.data or []
+    
+    if tickets:
+        try:
+            auth_users = admin_client.auth.admin.list_users()
+            email_map = {u.id: u.email for u in auth_users}
+            for t in tickets:
+                u_id = t.get("user_id")
+                if "profiles" in t and t["profiles"]:
+                    t["profiles"]["email"] = email_map.get(u_id)
+                else:
+                    t["profiles"] = {"full_name": None, "email": email_map.get(u_id)}
+        except Exception:
+            pass
+            
+    return tickets
 
 
 @router.post("/tickets/{ticket_id}/reply")

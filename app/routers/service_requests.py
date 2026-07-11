@@ -15,7 +15,7 @@ import math
 from typing import Optional, List
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 
 from app.schemas.service_request import (
     ServiceRequestCreate,
@@ -24,6 +24,7 @@ from app.schemas.service_request import (
     QuotationResponse,
 )
 from app.services.supabase_client import get_supabase_admin
+from app.services.storage_service import upload_property_image
 from app.middleware.auth_middleware import get_current_user
 
 router = APIRouter()
@@ -111,6 +112,48 @@ async def create_service_request(
     row = result.data[0]
     row["quotation_count"] = 0
     return ServiceRequestResponse(**row)
+
+
+# ─── Upload Images ────────────────────────────────────────────────────────────
+
+@router.post("/{request_id}/images", response_model=ServiceRequestResponse)
+async def upload_service_request_images(
+    request_id: str,
+    files: List[UploadFile] = File(...),
+    user=Depends(get_current_user),
+):
+    admin = get_supabase_admin()
+    existing = admin.table("service_requests").select("user_id,images").eq("id", request_id).maybe_single().execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Service request not found")
+
+    if existing.data["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your service request")
+
+    current_images: List[str] = existing.data.get("images") or []
+    new_urls: List[str] = []
+    for upload in files:
+        content = await upload.read()
+        url = await upload_property_image(
+            content,
+            upload.content_type or "image/jpeg",
+            user["id"],
+            property_id=request_id,
+        )
+        new_urls.append(url)
+
+    all_images = current_images + new_urls
+    result = (
+        admin.table("service_requests")
+        .update({"images": all_images, "updated_at": datetime.utcnow().isoformat()})
+        .eq("id", request_id)
+        .execute()
+    )
+    row = result.data[0]
+    qc = admin.table("quotations").select("id", count="exact").eq("request_id", request_id).execute()
+    row["quotation_count"] = qc.count or 0
+    return ServiceRequestResponse(**row)
+
 
 
 # ─── Get Service Request Detail ───────────────────────────────────────────────
