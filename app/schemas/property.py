@@ -88,6 +88,14 @@ class PropertyType(str, Enum):
     pest_control          = "pest_control"
     borewell              = "borewell"
     water_tank_cleaning   = "water_tank_cleaning"
+    # ── Fallback/Sub-category Custom mappings ────────────────────────────────
+    residential           = "residential"
+    commercial            = "commercial"
+    hotel_resort          = "hotel_resort"
+    hotel___resort        = "hotel___resort"
+    home_stay_pg          = "home_stay_pg"
+    home_stay___pg        = "home_stay___pg"
+    industrial_properties = "industrial_properties"
     # ── Generic ──────────────────────────────────────────────────────────────
     other                 = "other"
 
