@@ -42,7 +42,15 @@ async def get_current_user(
     if not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found")
 
-    return result.data
+    profile_data = result.data
+    try:
+        auth_user = admin.auth.admin.get_user_by_id(user_id)
+        if auth_user and auth_user.user:
+            profile_data["email"] = auth_user.user.email
+    except Exception:
+        pass
+
+    return profile_data
 
 
 async def get_optional_user(

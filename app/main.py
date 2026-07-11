@@ -17,6 +17,7 @@ from app.routers import ad_interests, ad_analytics
 from app.routers import service_requests
 from app.routers import subscriptions
 from app.routers import support
+from app.routers import discussions
 
 
 @asynccontextmanager
@@ -64,6 +65,8 @@ app.include_router(ad_analytics.router,     prefix=f"{API_PREFIX}/ads/analytics"
 app.include_router(service_requests.router, prefix=f"{API_PREFIX}/service-requests",tags=["Service Requests"])
 app.include_router(subscriptions.router,    prefix=f"{API_PREFIX}/subscriptions",   tags=["Subscriptions"])
 app.include_router(support.router,          prefix=f"{API_PREFIX}/support",         tags=["Support"])
+app.include_router(discussions.router,      prefix=f"{API_PREFIX}",                 tags=["Discussions"])
+
 
 
 # ─── Global error handlers (shows real tracebacks) ───────────────────────────

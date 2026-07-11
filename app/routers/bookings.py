@@ -65,6 +65,39 @@ async def list_my_bookings(current_user: dict = Depends(get_current_user)):
     return bookings
 
 
+@router.get("/owner", response_model=list[BookingResponse])
+async def list_owner_bookings(current_user: dict = Depends(get_current_user)):
+    admin = get_supabase_admin()
+    
+    # 1. Fetch properties owned by current user
+    prop_res = admin.table("properties").select("id").eq("owner_id", current_user["id"]).execute()
+    prop_ids = [p["id"] for p in (prop_res.data or [])]
+    
+    if not prop_ids:
+        return []
+        
+    # 2. Fetch bookings for these properties
+    result = (
+        admin.table("bookings")
+        .select("*, properties(title,city,images)")
+        .in_("property_id", prop_ids)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    bookings = []
+    for b in (result.data or []):
+        prop = b.pop("properties", {}) or {}
+        imgs = prop.get("images") or []
+        bookings.append(BookingResponse(
+            **b,
+            property_title=prop.get("title"),
+            property_city=prop.get("city"),
+            property_image=imgs[0] if imgs else None,
+        ))
+    return bookings
+
+
+
 @router.put("/{booking_id}/status", response_model=BookingResponse)
 async def update_booking_status(
     booking_id: str,

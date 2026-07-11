@@ -51,6 +51,9 @@ def _find_user_by_email(admin, email: str):
 
 def _build_user_profile(profile: dict) -> UserProfile:
     """Safely build UserProfile, filling missing fields with defaults."""
+    expires_at = profile.get("subscription_expires_at")
+    if expires_at and not isinstance(expires_at, str):
+        expires_at = expires_at.isoformat()
     return UserProfile(
         id=profile.get("id", ""),
         email=profile.get("email"),
@@ -64,8 +67,10 @@ def _build_user_profile(profile: dict) -> UserProfile:
         biometric_enabled=profile.get("biometric_enabled", False),
         city=profile.get("city", "All Cities"),
         language=profile.get("language", "English"),
-        created_at=profile.get("created_at"),
-        updated_at=profile.get("updated_at"),
+        subscription_tier=profile.get("subscription_tier", "free"),
+        subscription_expires_at=expires_at,
+        created_at=str(profile.get("created_at")) if profile.get("created_at") else None,
+        updated_at=str(profile.get("updated_at")) if profile.get("updated_at") else None,
     )
 
 
