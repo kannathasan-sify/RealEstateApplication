@@ -25,4 +25,4 @@ WHERE p.owner_id = pr.id
 -- Verify: count of properties that still have no agent_phone after backfill
 SELECT COUNT(*) AS missing_phone
 FROM   public.properties
-WHERE  agent_phone IS NULL OR agent_phone = '';
+WHERE  agent_phone IS

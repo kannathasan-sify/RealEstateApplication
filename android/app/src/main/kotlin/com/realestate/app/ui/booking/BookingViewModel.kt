@@ -43,5 +43,4 @@ sealed class BookingState {
     object Idle : BookingState()
     object Loading : BookingState()
     data class Success(val booking: Booking) : BookingState()
-    data class Error(val message: String) : BookingState()
-}
+    data class E

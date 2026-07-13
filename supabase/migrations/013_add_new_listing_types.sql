@@ -47,4 +47,4 @@ CREATE INDEX IF NOT EXISTS idx_properties_holiday_stay
   ON properties(listing_type) WHERE listing_type = 'holiday_stay';
 
 CREATE INDEX IF NOT EXISTS idx_properties_contractor
-  ON properties(listing_type) WHERE listing_type = 'contractor';
+  ON properties(

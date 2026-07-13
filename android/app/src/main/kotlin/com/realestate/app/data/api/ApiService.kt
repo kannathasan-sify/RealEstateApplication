@@ -396,14 +396,4 @@ data class AdminStats(
     @SerializedName("total_properties") val totalProperties: Int = 0,
     @SerializedName("pending_properties") val pendingProperties: Int = 0,
     @SerializedName("total_users") val totalUsers: Int = 0,
-    @SerializedName("agents_count") val agentsCount: Int = 0,
-    @SerializedName("builders_count") val buildersCount: Int = 0,
-    @SerializedName("total_revenue_inr") val totalRevenueInr: Int = 0,
-    @SerializedName("total_complaints") val totalComplaints: Int = 0,
-    @SerializedName("open_complaints") val openComplaints: Int = 0
-)
-
-data class SupportTicketCreateRequest(
-    val subject: String,
-    val description: String
-)
+    @SerializedName("agents_count")

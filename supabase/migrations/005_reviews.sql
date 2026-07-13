@@ -15,4 +15,4 @@ CREATE TABLE IF NOT EXISTS reviews (
 );
 
 CREATE INDEX idx_reviews_property_id ON reviews(property_id);
-CREATE INDEX idx_reviews_reviewer_id ON reviews(reviewer_id);
+CREATE INDEX idx_reviews_reviewer_id ON revie

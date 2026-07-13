@@ -19,4 +19,4 @@ WHERE listed_by = 'landlord'
 
 COMMENT ON COLUMN properties.whatsapp_number IS
     'WhatsApp-enabled phone number for this listing. Required for landlord postings. '
-    'Displayed as a WhatsApp chat button on the Property Detail screen.';
+    'Displayed as a WhatsApp chat button on the Prope

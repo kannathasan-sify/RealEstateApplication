@@ -74,6 +74,4 @@ class MyAdsViewModel @Inject constructor(
     }
 
     fun clearMessages() {
-        _state.value = _state.value.copy(error = null, deleteSuccess = null)
-    }
-}
+        _

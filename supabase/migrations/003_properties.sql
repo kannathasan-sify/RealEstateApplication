@@ -67,4 +67,4 @@ CREATE INDEX idx_properties_agency_id      ON properties(agency_id);
 CREATE INDEX idx_properties_is_featured    ON properties(is_featured);
 CREATE INDEX idx_properties_price          ON properties(price);
 CREATE INDEX idx_properties_created_at     ON properties(created_at DESC);
-CREATE INDEX idx_properties_amenities      ON properties USING GIN(amenities);
+CREATE IND

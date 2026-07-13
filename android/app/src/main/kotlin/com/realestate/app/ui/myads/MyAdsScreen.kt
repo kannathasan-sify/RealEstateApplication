@@ -401,15 +401,4 @@ private fun ApprovalBadge(status: ApprovalStatus) {
     val (label, bg, fg) = when (status) {
         ApprovalStatus.APPROVED -> Triple("✓ Approved", StatusApproved.copy(alpha = 0.12f), StatusApproved)
         ApprovalStatus.PENDING  -> Triple("⏳ Pending",  StatusPending.copy(alpha = 0.12f),  StatusPending)
-        ApprovalStatus.REJECTED -> Triple("✗ Rejected", StatusRejected.copy(alpha = 0.12f), StatusRejected)
-    }
-    Surface(shape = RoundedCornerShape(6.dp), color = bg) {
-        Text(
-            label,
-            fontSize   = 10.sp,
-            color      = fg,
-            fontWeight = FontWeight.SemiBold,
-            modifier   = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-        )
-    }
-}
+        Ap

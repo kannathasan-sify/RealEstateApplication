@@ -20,10 +20,9 @@ android/.cxx/
 android/captures/
 android/*.hprof
 
-# ── Claude Code local settings (contain machine-specific keys/tokens) ─────
-**/.claude/settings.local.json
+# ── Claude Code / Cowork local tooling (not part of the app) ──────────────
+# Plugin cache, skills, and local settings — machine-specific, not project source.
+.claude/
+.idea/
 
-# ── OS / editor junk ────────────────────────────────────────────────────────
-.DS_Store
-Thumbs.db
-*.log
+# ── OS / editor junk ────────────────────────────────────�

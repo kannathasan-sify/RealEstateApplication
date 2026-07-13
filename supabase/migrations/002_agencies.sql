@@ -19,4 +19,4 @@ CREATE TABLE IF NOT EXISTS agencies (
 -- Now that agencies exists, add the FK constraint to profiles
 ALTER TABLE profiles
   ADD CONSTRAINT profiles_agency_id_fkey
-  FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE SET NULL;
+  FOREIGN KEY (agency_id) REFERENCES agencies(id)

@@ -28,4 +28,4 @@ UPDATE properties
 -- Step 3: Re-add constraint with the correct value
 ALTER TABLE properties
   ADD CONSTRAINT properties_furnishing_check
-    CHECK (furnishing IN ('furnished', 'unfurnished', 'semi_furnished'));
+    CHECK (furnishing IN ('furnished', 'unfu

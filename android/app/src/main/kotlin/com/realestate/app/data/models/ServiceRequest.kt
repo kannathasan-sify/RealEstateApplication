@@ -131,6 +131,4 @@ data class QuotationCreateRequest(
     @SerializedName("request_id")   val requestId: String,
     @SerializedName("property_id")  val propertyId: String?  = null,
     @SerializedName("amount")       val amount: Double?       = null,
-    @SerializedName("timeline")     val timeline: String?     = null,
-    @SerializedName("notes")        val notes: String?        = null,
-)
+    @Seri

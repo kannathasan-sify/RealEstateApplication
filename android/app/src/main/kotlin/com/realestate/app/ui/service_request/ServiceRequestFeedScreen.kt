@@ -409,16 +409,4 @@ private fun ServiceRequestCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.CalendarToday, null, tint = NestXBlue, modifier = Modifier.size(12.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text(
-                                "Needed by ${formatPreferredDate(req.preferredDate)}",
-                                fontSize = 11.sp,
-                                color = NestXBlue,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+  
