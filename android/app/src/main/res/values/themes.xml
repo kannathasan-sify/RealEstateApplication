@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- NestX theme: blue brand identity, no action bar (Compose handles UI) -->
+    <style name="Theme.RealEstateApp" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/nestx_blue_dark</item>
+        <item name="android:navigationBarColor">@color/nestx_blue</item>
+        <item name="android:colorPrimary">@color/nestx_blue</item>
+        <item name="android:colorPrimaryDark">@color/nestx_blue_dark</item>
+        <item name="android:colorAccent">@color/nestx_blue_accent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Splash screen theme (shown before Compose loads) -->
+    <style name="Theme.RealEstateApp.Splash" parent="Theme.RealEstateApp">
+        <item name="android:windowBackground">@color/nestx_blue</item>
+    </style>
+</resources>

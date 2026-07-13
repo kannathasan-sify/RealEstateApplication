@@ -1,0 +1,53 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+        NestX Adaptive Icon Foreground
+        Background colour (#1565C0 NestXBlue) set in ic_launcher.xml.
+        Safe zone: 72dp centred (18dp inset each side).
+        Elements: outer ring, bold X, swoosh arc + accent.
+    -->
+
+    <!-- Outer circle ring — subtle lighter blue -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#3D8BDB"
+        android:strokeWidth="3.5"
+        android:pathData="M54,19 A35,35 0 1,1 53.99,19 Z" />
+
+    <!-- Swoosh — sweeps from bottom-left up and over to upper-right -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#90CAF9"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M22,58 Q30,22 86,38" />
+
+    <!-- Inner swoosh accent (thinner, brighter) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#BBDEFB"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M27,52 Q36,24 80,36" />
+
+    <!-- X — \ diagonal (top-left → bottom-right) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:pathData="M35,35 L73,73" />
+
+    <!-- X — / diagonal (top-right → bottom-left) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:pathData="M73,35 L35,73" />
+
+</vector>

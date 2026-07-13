@@ -1,0 +1,67 @@
+name: Backend CI
+
+# Runs whenever backend/ changes get pushed, or manually via the Actions tab.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+  workflow_dispatch: {}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Sanity-check the app imports
+        # Catches broken imports / syntax errors even before any tests exist.
+        env:
+          # Dummy values so app.config / Supabase client construction doesn't
+          # fail at import time in CI — replace with real repo secrets
+          # (Settings -> Secrets and variables -> Actions) once this needs to
+          # actually talk to Supabase.
+          SUPABASE_URL: "https://placeholder.supabase.co"
+          SUPABASE_ANON_KEY: "placeholder"
+          SUPABASE_SERVICE_ROLE_KEY: "placeholder"
+          SECRET_KEY: "placeholder"
+        run: python -c "import app.main; print('app.main imported OK')"
+
+      - name: Run tests
+        # No tests/ folder exists yet in backend/ — this step becomes a no-op
+        # today and starts running automatically once one is added.
+        if: hashFiles('backend/tests/**') != ''
+        run: pytest -q
+
+  # ── Deploy (disabled until a hosting target is chosen) ──────────────────
+  # Uncomment and fill in once the backend has somewhere to deploy to
+  # (e.g. Render, Railway, Fly.io, a VPS). Store credentials as repo secrets
+  # under Settings -> Secrets and variables -> Actions — never commit them.
+  #
+  # deploy:
+  #   needs: build-and-test
+  #   if: github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Deploy to Render
+  #       run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider path configuration.
+  Used by:
+    - TakePicture contract  → saves camera output to external-files-path Pictures/
+    - UCrop                 → reads from that URI and writes cropped output to cache-path
+-->
+<paths>
+    <!-- Camera captures: getExternalFilesDir(Environment.DIRECTORY_PICTURES) -->
+    <external-files-path
+        name="camera_images"
+        path="Pictures/" />
+
+    <!-- UCrop output + any temp processing: cacheDir -->
+    <cache-path
+        name="cached_images"
+        path="/" />
+</paths>

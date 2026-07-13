@@ -1,0 +1,29 @@
+# ── Backend (Python / FastAPI) ────────────────────────────────────────────
+backend/venv/
+backend/.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Real secrets — never commit these (see backend/.env.example for the template)
+backend/.env
+.env
+
+# ── Android / Gradle ───────────────────────────────────────────────────────
+android/.gradle/
+android/**/build/
+android/local.properties
+android/.idea/
+android/**/*.iml
+android/.cxx/
+android/captures/
+android/*.hprof
+
+# ── Claude Code local settings (contain machine-specific keys/tokens) ─────
+**/.claude/settings.local.json
+
+# ── OS / editor junk ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Adaptive icon foreground: wraps the full NestX nest logo PNG.
+    The bitmap is centred and scaled to fill the 108dp adaptive canvas.
+    On API 26+ the system masks this to circle / squircle / rounded-rect
+    depending on the launcher — the nest image fills the full safe zone.
+-->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/ic_nestx_nest"
+    android:gravity="fill" />

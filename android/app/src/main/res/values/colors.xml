@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- NestX Brand Colors -->
+    <color name="nestx_blue">#1565C0</color>
+    <color name="nestx_blue_dark">#0D47A1</color>
+    <color name="nestx_blue_light">#42A5F5</color>
+    <color name="nestx_blue_accent">#1976D2</color>
+
+    <!-- Launcher icon -->
+    <color name="ic_launcher_background">#1565C0</color>
+    <color name="ic_launcher_foreground">#FFFFFF</color>
+
+    <!-- Status bar -->
+    <color name="status_bar_color">#0D47A1</color>
+</resources>
