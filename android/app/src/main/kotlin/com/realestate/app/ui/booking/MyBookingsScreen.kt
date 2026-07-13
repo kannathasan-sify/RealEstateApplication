@@ -401,4 +401,13 @@ private fun BookingInfoChip(
     }
 }
 
-// ── Date formatter ────────────────────────────�
+// ── Date formatter ────────────────────────────────────────────────────────────
+
+private fun formatDate(raw: String?): String {
+    if (raw.isNullOrBlank()) return "--"
+    return runCatching {
+        val inSdf  = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val outSdf = SimpleDateFormat("d MMM yyyy", Locale.US)
+        outSdf.format(inSdf.parse(raw)!!)
+    }.getOrDefault(raw)
+}

@@ -79,4 +79,8 @@ class MyBookingsViewModel @Inject constructor(
 
     fun updateBookingStatus(id: String, status: String) {
         viewModelScope.launch {
-     
+            repo.updateBookingStatus(id, status)
+            load()
+        }
+    }
+}

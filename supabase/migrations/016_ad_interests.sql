@@ -70,4 +70,7 @@ CREATE POLICY "admin_all_interests"
     FOR ALL
     USING (
         EXISTS (
-            SELECT 1 FROM profile
+            SELECT 1 FROM profiles
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );

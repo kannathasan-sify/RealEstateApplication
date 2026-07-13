@@ -245,4 +245,13 @@ fun BookingScreen(
                     colors = CardDefaults.cardColors(containerColor = OnboardingBlob),
                 ) {
                     Text(
-                        text     = (state as Boo
+                        text     = (state as BookingState.Error).message,
+                        color    = PrimaryRed,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
+            }
+        }
+    }
+}

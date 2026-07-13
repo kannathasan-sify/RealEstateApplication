@@ -283,4 +283,16 @@ class ServiceRequestViewModel @Inject constructor(
             } else {
                 repo.updateQuotationStatus(quotationId, newStatus).fold(
                     onSuccess = { loadRequestDetail(requestId) },
-                    onFailure = { /
+                    onFailure = { /* Handle error */ }
+                )
+            }
+        }
+    }
+}
+
+sealed class PostRequestState {
+    object Idle : PostRequestState()
+    object Loading : PostRequestState()
+    object Success : PostRequestState()
+    data class Error(val message: String) : PostRequestState()
+}

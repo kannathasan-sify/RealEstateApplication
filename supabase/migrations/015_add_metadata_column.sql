@@ -26,4 +26,4 @@ COMMENT ON COLUMN properties.metadata IS
     '              pricing_model, license_no, team_size, timeline, '
     '              warranty, warranty_dur '
     'holiday_stay → stay_type, max_guests, check_in, check_out, min_nights, '
-    '               facilities, 
+    '               facilities, house_rules, cancellation';

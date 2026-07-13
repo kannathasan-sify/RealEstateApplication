@@ -17,4 +17,4 @@ CREATE TABLE IF NOT EXISTS bookings (
 
 CREATE INDEX idx_bookings_buyer_id    ON bookings(buyer_id);
 CREATE INDEX idx_bookings_property_id ON bookings(property_id);
-CREATE INDEX idx_bookings_status      ON
+CREATE INDEX idx_bookings_status      ON bookings(status);

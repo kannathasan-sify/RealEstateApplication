@@ -39,4 +39,4 @@ ALTER TABLE properties
 
 -- ── 3. Index for ground category browsing ─────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_properties_ground
-  ON properties(list
+  ON properties(listing_type) WHERE listing_type = 'ground';

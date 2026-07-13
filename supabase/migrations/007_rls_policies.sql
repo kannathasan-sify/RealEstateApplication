@@ -145,4 +145,9 @@ CREATE POLICY "saved_searches_own_select"
   USING (auth.uid() = user_id);
 
 CREATE POLICY "saved_searches_own_insert"
-  ON saved_searches FOR INS
+  ON saved_searches FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "saved_searches_own_delete"
+  ON saved_searches FOR DELETE
+  USING (auth.uid() = user_id);

@@ -407,4 +407,14 @@ fun PostServiceRequestScreen(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed),
-     
+                enabled = postState !is PostRequestState.Loading
+            ) {
+                if (postState is PostRequestState.Loading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                } else {
+                    Text("Broadcast Request", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}

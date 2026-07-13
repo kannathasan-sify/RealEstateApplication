@@ -32,3 +32,4 @@ CREATE POLICY "public_read" ON properties
 
 -- Index for admin dashboard queries by approval status
 CREATE INDEX IF NOT EXISTS idx_properties_approval_status
+  ON properties(approval_status);

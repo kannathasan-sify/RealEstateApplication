@@ -269,4 +269,41 @@ async def submit_quotation(
     data["status"]         = "pending"
     data["created_at"]     = datetime.utcnow().isoformat()
 
-    re
+    result = admin.table("quotations").insert(data).execute()
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to submit quotation")
+    return QuotationResponse(**result.data[0])
+
+
+# ─── Accept / Reject Quotation ────────────────────────────────────────────────
+
+@router.put("/quotations/{quotation_id}")
+async def update_quotation_status(
+    quotation_id: str,
+    new_status:   str = Query(...),   # accepted | rejected
+    user=Depends(get_current_user),
+):
+    if new_status not in {"accepted", "rejected"}:
+        raise HTTPException(status_code=400, detail="status must be 'accepted' or 'rejected'")
+
+    admin = get_supabase_admin()
+
+    # Verify the current user owns the parent request
+    q = admin.table("quotations").select("request_id").eq("id", quotation_id).single().execute()
+    if not q.data:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+
+    req = admin.table("service_requests").select("user_id").eq("id", q.data["request_id"]).single().execute()
+    if not req.data or req.data["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Only the request owner can accept/reject quotations")
+
+    admin.table("quotations").update({"status": new_status}).eq("id", quotation_id).execute()
+
+    # If accepted, mark the request as in_progress
+    if new_status == "accepted":
+        admin.table("service_requests").update({
+            "status":     "in_progress",
+            "updated_at": datetime.utcnow().isoformat(),
+        }).eq("id", q.data["request_id"]).execute()
+
+    return {"status": new_status}

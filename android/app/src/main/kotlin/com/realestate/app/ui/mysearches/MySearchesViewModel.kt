@@ -30,4 +30,7 @@ class MySearchesViewModel @Inject constructor(
             _state.value = _state.value.copy(isLoading = true, error = null)
             userRepo.getSavedSearches()
                 .onSuccess { list -> _state.value = _state.value.copy(isLoading = false, searches = list) }
-                .onFailure { e  -> _state.value = _state.value.copy(isLoading = false, error =
+                .onFailure { e  -> _state.value = _state.value.copy(isLoading = false, error = e.message) }
+        }
+    }
+}

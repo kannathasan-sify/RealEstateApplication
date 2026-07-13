@@ -84,4 +84,21 @@ class ServiceRequestResponse(BaseModel):
 
 # ─── Quotation schemas ────────────────────────────────────────────────────────
 
-class QuotationCreate(Bas
+class QuotationCreate(BaseModel):
+    request_id:    str
+    property_id:   Optional[str] = None  # contractor's listing ID (optional)
+    amount:        Optional[float] = None
+    timeline:      Optional[str]   = None  # e.g. "2–4 weeks"
+    notes:         Optional[str]   = None
+
+
+class QuotationResponse(BaseModel):
+    id:            str
+    request_id:    str
+    contractor_id: str
+    property_id:   Optional[str]  = None
+    amount:        Optional[float] = None
+    timeline:      Optional[str]   = None
+    notes:         Optional[str]   = None
+    status:        str             = "pending"
+    created_at:    Optional[str]   = None

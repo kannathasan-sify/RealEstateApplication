@@ -283,4 +283,11 @@ class PropertyRepository @Inject constructor(
 
 
     // ── Support ──────────────────────────────────────────────────────────────
-    suspend fun createSupportTicket(subjec
+    suspend fun createSupportTicket(subject: String, description: String): Result<SupportTicket> = runCatching {
+        api.createSupportTicket(SupportTicketCreateRequest(subject, description))
+    }
+
+    suspend fun getMySupportTickets(): Result<List<SupportTicket>> = runCatching {
+        api.getMySupportTickets()
+    }
+}

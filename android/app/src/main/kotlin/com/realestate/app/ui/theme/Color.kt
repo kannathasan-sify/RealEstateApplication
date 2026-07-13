@@ -26,4 +26,4 @@ val BannerBlue       = Color(0xFFE3F2FD)
 val StatusPending    = Color(0xFFFFC107)   // Yellow
 val StatusApproved   = Color(0xFF4CAF50)   // Green
 val StatusRejected   = Color(0xFFF44336)   // Red
-val AdminBadge       = Co
+val AdminBadge       = Color(0xFF6A1B9A)   // Purple

@@ -218,4 +218,11 @@ private fun SavedSearchCard(
     }
 }
 
-private fun formatAmount(raw: String): String = r
+private fun formatAmount(raw: String): String = runCatching {
+    val n = raw.toDouble().toLong()
+    when {
+        n >= 10_000_000 -> "${n / 10_000_000}Cr"
+        n >= 100_000    -> "${n / 100_000}L"
+        else            -> n.toString()
+    }
+}.getOrDefault(raw)

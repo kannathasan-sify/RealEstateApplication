@@ -31,4 +31,4 @@ $$;
 
 CREATE TRIGGER profiles_updated_at
   BEFORE UPDATE ON profiles
-  FOR EACH ROW EXECU
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();

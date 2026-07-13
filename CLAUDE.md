@@ -1142,4 +1142,12 @@ These are real inconsistencies found across the codebase, not stylistic choices 
 
 3. **`property_type`/`listing_type` in `schemas/property.py` (Pydantic) go further than the SQL `CHECK` constraints on disk** — e.g. a `maintenance` listing_type and many contractor/maintenance property_type values (`civil_contractor`, `electrician`, `ac_service`, `pest_control`, etc.) exist in Python validation but may not be reflected in the DB constraint. Risk: valid-per-API payloads could be rejected at the DB layer, or vice versa. Audit and sync.
 
-4. **`property_d
+4. **`property_discussions` table has no committed migration file** — the router has a fallback in-memory cache specifically because the table may not exist. Add a real migration (draft provided above) before shipping this feature to a new environment.
+
+5. **Migration filename collision**: two files are both named with prefix `008` (`008_add_district.sql` and `008_backfill_agent_fields.sql`). Not currently breaking anything since they're applied manually/pasted in order, but rename one to avoid ordering ambiguity via tooling that sorts by filename.
+
+6. **`AdAnalyticsTracker.flush()` does not call the backend** — analytics summary shown to admins today would be empty/absent since no events are actually being ingested from the app. Either wire it up or explicitly mark analytics as backend-only/seed-data for now.
+
+7. **No admin UI consumes the ad analytics endpoints** (`/ads/analytics/summary`, `/campaign/{id}`, `/top`) yet — backend is ready, frontend isn't.
+
+8. **"My Searches" is read/display-only in the Android app** — save/delete/rename DTOs exist (`SavedSearchRequest`) but aren't wired to any button/action in `MySearchesViewModel`.

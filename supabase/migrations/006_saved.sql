@@ -25,4 +25,4 @@ CREATE TABLE IF NOT EXISTS saved_searches (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_saved_searches_user_id O
+CREATE INDEX idx_saved_searches_user_id ON saved_searches(user_id);

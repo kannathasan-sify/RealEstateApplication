@@ -1202,4 +1202,64 @@ object MockData {
             latitude       = request.latitude,
             longitude      = request.longitude,
             neighborhood   = "",
-            images         = l
+            images         = listOf("https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800"),
+            amenities      = request.amenities,
+            furnishing     = request.furnishing,
+            listedBy       = request.listedBy,
+            agentName      = agentName,
+            agentPhone     = request.agentPhone ?: "",
+            agentPhoto     = "https://randomuser.me/api/portraits/men/1.jpg",
+            whatsappNumber = request.whatsappNumber,
+            approvalStatus = ApprovalStatus.PENDING,
+            referenceId    = "$refPrefix-$seq",
+            status         = "inactive",
+            createdAt      = now,
+            metadata       = request.metadata,
+        )
+        _allProperties.add(property)
+        return property
+    }
+
+    // ── Bookings storage (mock mode) ─────────────────────────────────────────
+
+    private val _bookings: MutableList<Booking> = mutableListOf()
+//
+  //  val bookings: List<Booking> get() = _bookings.toList()
+
+    fun createBooking(
+        propertyId: String,
+        date: String,
+        time: String,
+        message: String?,
+    ): Booking {
+        val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
+        val booking = Booking(
+            id         = UUID.randomUUID().toString(),
+            propertyId = propertyId,
+            buyerId    = "mock-user",
+            visitDate  = date,
+            visitTime  = time,
+            status     = "confirmed",
+            message    = message,
+            createdAt  = now,
+        )
+        _bookings.add(0, booking) // newest first
+        return booking
+    }
+
+    fun getBookings(): List<Booking> = _bookings.toList()
+
+    fun cancelBooking(id: String) {
+        val idx = _bookings.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            _bookings[idx] = _bookings[idx].copy(status = "cancelled")
+        }
+    }
+
+    fun updateBookingStatus(id: String, status: String) {
+        val idx = _bookings.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            _bookings[idx] = _bookings[idx].copy(status = status)
+        }
+    }
+}

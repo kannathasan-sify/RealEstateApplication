@@ -1356,4 +1356,38 @@ private fun PropertyContactBar(
     Surface(shadowElevation = 8.dp) {
         Row(
             modifier              = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            hori
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (hasCall) {
+                Button(
+                    onClick  = onCall,
+                    modifier = Modifier.weight(1f),
+                    colors   = ButtonDefaults.buttonColors(containerColor = NestXBlue),
+                ) {
+                    Icon(Icons.Default.Phone, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Call", fontSize = 13.sp)
+                }
+            }
+            if (hasWhatsApp) {
+                Button(
+                    onClick  = onWhatsApp,
+                    modifier = Modifier.weight(1f),
+                    colors   = ButtonDefaults.buttonColors(containerColor = WhatsAppGreen),
+                ) {
+                    Text("💬 WhatsApp", fontSize = 13.sp)
+                }
+            }
+            // Book/Visit button always present
+            Button(
+                onClick  = onBookVisit,
+                modifier = Modifier.weight(1f),
+                colors   = ButtonDefaults.buttonColors(containerColor = NestXBlueDark),
+            ) {
+                Icon(Icons.Default.CalendarToday, null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(visitLabel, fontSize = 13.sp)
+            }
+        }
+    }
+}

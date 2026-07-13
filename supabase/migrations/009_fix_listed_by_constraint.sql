@@ -18,4 +18,4 @@ ALTER TABLE properties
 --   existing rows are not invalidated.
 ALTER TABLE properties
   ADD CONSTRAINT properties_listed_by_check
-    CHECK (listed_by IN ('landlord', 'agent', 'agency', 'devel
+    CHECK (listed_by IN ('landlord', 'agent', 'agency', 'developer', 'builder'));

@@ -55,4 +55,6 @@ CREATE POLICY "admin_read_all"
     USING (
         EXISTS (
             SELECT 1 FROM profiles
-            W
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );

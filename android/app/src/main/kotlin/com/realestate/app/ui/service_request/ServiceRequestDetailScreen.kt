@@ -374,4 +374,14 @@ private fun QuotationItem(
                     modifier = Modifier.align(Alignment.End)
                 ) {
                     Text(
-                        text = quote.status.replaceFirstChar { it.u
+                        text = quote.status.replaceFirstChar { it.uppercase() },
+                        color = if (quote.status == "accepted") Color(0xFF2E7D32) else Color(0xFFC62828),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
