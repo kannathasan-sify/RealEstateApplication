@@ -18,6 +18,7 @@ from app.routers import service_requests
 from app.routers import subscriptions
 from app.routers import support
 from app.routers import discussions
+from app.routers import property_leads
 
 
 @asynccontextmanager
@@ -66,6 +67,7 @@ app.include_router(service_requests.router, prefix=f"{API_PREFIX}/service-reques
 app.include_router(subscriptions.router,    prefix=f"{API_PREFIX}/subscriptions",   tags=["Subscriptions"])
 app.include_router(support.router,          prefix=f"{API_PREFIX}/support",         tags=["Support"])
 app.include_router(discussions.router,      prefix=f"{API_PREFIX}",                 tags=["Discussions"])
+app.include_router(property_leads.router,   prefix=f"{API_PREFIX}",                 tags=["Property Leads"])
 
 
 

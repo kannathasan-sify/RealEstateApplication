@@ -4,6 +4,7 @@ import com.realestate.app.data.models.ApprovalStatus
 import com.realestate.app.data.models.Booking
 import com.realestate.app.data.models.Property
 import com.realestate.app.data.models.PropertyCreateRequest
+import com.realestate.app.data.models.PropertyLead
 import com.realestate.app.data.models.User
 import com.realestate.app.data.models.ServiceRequest
 import com.realestate.app.data.models.Quotation
@@ -43,6 +44,45 @@ object MockData {
         maxListings = 3,
         maxImages = 10,
         currentListingsCount = 0
+    )
+
+    /**
+     * Property "I'm Interested" leads. Seeded with one enquiry the mock user sent (shows in
+     * the buyer "My Enquiries" tab) and one received on the mock user's own listing (shows
+     * in the owner "Received Leads" tab). Property fields are denormalized snapshots, so
+     * they don't need to resolve to a live [Property].
+     */
+    val propertyLeads = mutableListOf<PropertyLead>(
+        PropertyLead(
+            id            = "lead-mock-001",
+            propertyId    = "prop-002",
+            propertyRef   = "TN-S-10231",
+            propertyTitle = "2BHK Apartment for Sale in Anna Nagar",
+            ownerId       = "owner-xyz",
+            buyerId       = currentUser.id,
+            buyerName     = currentUser.fullName,
+            buyerPhone    = currentUser.phone,
+            buyerEmail    = currentUser.email,
+            channel       = "app",
+            message       = "Interested — please share more details.",
+            status        = "contacted",
+            createdAt     = "2026-07-12T09:30:00Z",
+        ),
+        PropertyLead(
+            id            = "lead-mock-002",
+            propertyId    = "prop-101",
+            propertyRef   = "TN-R-20455",
+            propertyTitle = "3BHK Villa for Rent in Coimbatore",
+            ownerId       = currentUser.id,
+            buyerId       = "buyer-abc",
+            buyerName     = "Ramesh Kumar",
+            buyerPhone    = "9876543210",
+            buyerEmail    = "ramesh.k@example.com",
+            channel       = "app",
+            message       = "Is this still available? Looking to move in next month.",
+            status        = "pending",
+            createdAt     = "2026-07-13T18:05:00Z",
+        ),
     )
 
     val serviceRequests = mutableListOf<ServiceRequest>(

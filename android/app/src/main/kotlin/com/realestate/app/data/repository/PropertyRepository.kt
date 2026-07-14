@@ -199,6 +199,26 @@ class PropertyRepository @Inject constructor(
         Unit
     }
 
+    // ── Property Leads ("I'm Interested") ────────────────────────────────────
+
+    suspend fun registerInterest(
+        propertyId: String,
+        message: String? = null,
+        channel: String = "app",
+    ): Result<PropertyLead> = runCatching {
+        api.registerPropertyInterest(propertyId, PropertyInterestRequest(message, channel))
+    }
+
+    suspend fun getMyLeads(): Result<List<PropertyLead>> = runCatching { api.getMyLeads() }
+
+    suspend fun getReceivedLeads(): Result<List<PropertyLead>> = runCatching { api.getReceivedLeads() }
+
+    suspend fun getPropertyLeads(propertyId: String): Result<List<PropertyLead>> =
+        runCatching { api.getPropertyLeads(propertyId) }
+
+    suspend fun updateLeadStatus(leadId: String, status: String): Result<PropertyLead> =
+        runCatching { api.updateLeadStatus(leadId, LeadStatusUpdateRequest(status)) }
+
     // ── Admin ─────────────────────────────────────────────────────────────────
 
     /** Fetch ALL listings for admin (pending / approved / rejected). */

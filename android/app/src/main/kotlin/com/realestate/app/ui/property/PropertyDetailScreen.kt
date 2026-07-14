@@ -49,11 +49,14 @@ fun PropertyDetailScreen(
     LaunchedEffect(propertyId) {
         viewModel.loadPropertyDetail(propertyId)
         viewModel.checkSaved(propertyId)          // ← check real saved state from API
+        viewModel.checkInterest(propertyId)       // ← already enquired?
         viewModel.loadDiscussions(propertyId)
     }
     val state   by viewModel.detailState.collectAsState()
     val isSaved by viewModel.isSaved.collectAsState()
     val discussions by viewModel.discussions.collectAsState()
+    val interestState by viewModel.interestState.collectAsState()
+    val hasExpressedInterest by viewModel.hasExpressedInterest.collectAsState()
 
     when (val s = state) {
         is PropertyDetailUiState.Loading ->
@@ -70,6 +73,10 @@ fun PropertyDetailScreen(
                 similar         = s.similar,
                 isSaved         = isSaved,
                 discussions     = discussions,
+                buyerName            = viewModel.currentUserName,
+                interestState        = interestState,
+                hasExpressedInterest = hasExpressedInterest,
+                onExpressInterest    = { viewModel.submitInterest(s.property.id) },
                 onPostDiscussion = { msg, parentId -> viewModel.postDiscussion(s.property.id, msg, parentId) },
                 onToggleSave    = { viewModel.toggleSave(s.property.id) },
                 onBack          = onBack,
@@ -89,6 +96,10 @@ private fun PropertyDetailContent(
     similar: List<Property>,
     isSaved: Boolean,
     discussions: List<com.realestate.app.data.models.Discussion>,
+    buyerName: String?,
+    interestState: InterestState,
+    hasExpressedInterest: Boolean,
+    onExpressInterest: () -> Unit,
     onPostDiscussion: (String, String?) -> Unit,
     onToggleSave: () -> Unit,
     onBack: () -> Unit,
@@ -110,6 +121,11 @@ private fun PropertyDetailContent(
         ?.trimStart('0')
         ?.let { if (it.startsWith("91")) it else "91$it" }
 
+    // ── Phase 0: pre-filled WhatsApp enquiry ──────────────────────────────────
+    // One tap opens WhatsApp to the owner/agent with the full property details already
+    // typed, so the buyer just hits Send. Free, no WhatsApp Business API required.
+    val encodedEnquiry = Uri.encode(buildEnquiryMessage(property, buyerName))
+
     Scaffold(
         bottomBar = {
             PropertyContactBar(
@@ -122,7 +138,9 @@ private fun PropertyDetailContent(
                 },
                 onWhatsApp  = {
                     waNumber?.let {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$it")))
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$it?text=$encodedEnquiry"))
+                        )
                     }
                 },
                 onBookVisit = onBookVisit,
@@ -220,6 +238,15 @@ private fun PropertyDetailContent(
                         }
                     }
                 }
+            }
+
+            // ── "I'm Interested" lead CTA ────────────────────────────────────
+            item {
+                PropertyInterestCta(
+                    hasExpressedInterest = hasExpressedInterest,
+                    interestState        = interestState,
+                    onExpressInterest    = onExpressInterest,
+                )
             }
 
             // ── Price + Title ────────────────────────────────────────────────
@@ -1153,7 +1180,10 @@ private fun AgentContactSection(
                     Button(
                         onClick  = {
                             context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$waNumber"))
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://wa.me/$waNumber?text=${Uri.encode(buildEnquiryMessage(property, null))}")
+                                )
                             )
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
@@ -1389,5 +1419,107 @@ private fun PropertyContactBar(
                 Text(visitLabel, fontSize = 13.sp)
             }
         }
+    }
+}
+
+// ── "I'm Interested" lead CTA ─────────────────────────────────────────────────
+
+/**
+ * Prominent lead-capture CTA. Tapping records the buyer's interest as a [PropertyLead]
+ * so the owner/agent gets the enquiry (and, in the future paid phase, an auto WhatsApp).
+ * Once sent, it collapses into a confirmation chip.
+ */
+@Composable
+private fun PropertyInterestCta(
+    hasExpressedInterest: Boolean,
+    interestState: InterestState,
+    onExpressInterest: () -> Unit,
+) {
+    val alreadySent = hasExpressedInterest || interestState is InterestState.Success
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = if (alreadySent) StatusApproved.copy(alpha = 0.10f) else BannerBlue,
+    ) {
+        if (alreadySent) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(Icons.Default.CheckCircle, null, tint = StatusApproved, modifier = Modifier.size(22.dp))
+                Column {
+                    Text(
+                        "Enquiry sent",
+                        fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary,
+                    )
+                    Text(
+                        "The owner has your contact details and will reach out.",
+                        fontSize = 12.sp, color = TextSecondary,
+                    )
+                }
+            }
+        } else {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "Interested in this property?",
+                    fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Share your details with the owner so they can contact you.",
+                    fontSize = 12.sp, color = TextSecondary,
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick  = onExpressInterest,
+                    enabled  = interestState !is InterestState.Loading,
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    shape    = RoundedCornerShape(10.dp),
+                    colors   = ButtonDefaults.buttonColors(containerColor = NestXBlue),
+                ) {
+                    if (interestState is InterestState.Loading) {
+                        CircularProgressIndicator(
+                            color = Color.White, strokeWidth = 2.dp,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    } else {
+                        Icon(Icons.Default.Favorite, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("I'm Interested", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                if (interestState is InterestState.Error) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(interestState.message, color = StatusRejected, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Builds the pre-filled WhatsApp enquiry text (Phase 0). Includes the listing's key
+ * details + reference so the owner/agent immediately knows which property and buyer.
+ * [buyerName] is appended when known (display-only; the backend authoritative source
+ * is the JWT when a lead is created).
+ */
+private fun buildEnquiryMessage(property: Property, buyerName: String?): String {
+    val loc = listOfNotNull(
+        property.neighborhood?.takeIf { it.isNotBlank() },
+        property.district?.takeIf { it.isNotBlank() },
+    ).joinToString(", ")
+    return buildString {
+        append("Hi")
+        if (property.agentName.isNotBlank()) append(" ${property.agentName}")
+        append(", I'm interested in this property on NestX:\n\n")
+        append("🏠 ${property.title.orEmpty()}\n")
+        if (loc.isNotBlank()) append("📍 $loc\n")
+        append("💰 ${property.priceDisplay}\n")
+        if (property.referenceId.isNotBlank()) append("🔖 Ref: ${property.referenceId}\n")
+        append("\nPlease share more details.")
+        if (!buyerName.isNullOrBlank()) append("\n\n— $buyerName")
     }
 }

@@ -28,6 +28,14 @@ sealed class PropertyDetailUiState {
     data class Error(val message: String)                                    : PropertyDetailUiState()
 }
 
+/** One-shot state for the "I'm Interested" action on a property. */
+sealed class InterestState {
+    object Idle                             : InterestState()
+    object Loading                          : InterestState()
+    object Success                          : InterestState()
+    data class Error(val message: String)   : InterestState()
+}
+
 // ── ViewModel ──────────────────────────────────────────────────────────────────
 
 @HiltViewModel
@@ -55,6 +63,21 @@ class PropertyViewModel @Inject constructor(
     // ── Selected district (from DistrictListScreen / HomeScreen) ─────────────
     private val _selectedDistrict = MutableStateFlow("All TN")
     val selectedDistrict: StateFlow<String> = _selectedDistrict.asStateFlow()
+
+    // ── "I'm Interested" (property lead) state for the currently viewed property ─
+    private val _interestState = MutableStateFlow<InterestState>(InterestState.Idle)
+    val interestState: StateFlow<InterestState> = _interestState.asStateFlow()
+
+    private val _hasExpressedInterest = MutableStateFlow(false)
+    val hasExpressedInterest: StateFlow<Boolean> = _hasExpressedInterest.asStateFlow()
+
+    /**
+     * Best-effort current buyer name for pre-filling the WhatsApp enquiry message.
+     * Sourced from mock data in debug; null in API mode (the backend fills buyer
+     * details from the JWT when the lead is created, so this is display-only).
+     */
+    val currentUserName: String? get() =
+        if (BuildConfig.USE_MOCK_DATA) MockData.currentUser.fullName else null
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -144,6 +167,69 @@ class PropertyViewModel @Inject constructor(
                 repo.unsaveProperty(id).onFailure { _isSaved.value = true }   // revert on error
             } else {
                 repo.saveProperty(id).onFailure { _isSaved.value = false }    // revert on error
+            }
+        }
+    }
+
+    /** Check whether the current user has already enquired about this property. */
+    fun checkInterest(id: String) {
+        _interestState.value = InterestState.Idle
+        if (BuildConfig.USE_MOCK_DATA) {
+            _hasExpressedInterest.value = MockData.propertyLeads.any {
+                it.propertyId == id && it.buyerId == MockData.currentUser.id
+            }
+        } else {
+            _hasExpressedInterest.value = false   // POST is an idempotent upsert; safe to re-tap
+        }
+    }
+
+    /**
+     * Register the current user's interest in a property (creates a [PropertyLead]).
+     * The owner/agent then sees the enquiry; the buyer sees it in "My Enquiries".
+     */
+    fun submitInterest(id: String, message: String? = null, channel: String = "app") {
+        viewModelScope.launch {
+            _interestState.value = InterestState.Loading
+            if (BuildConfig.USE_MOCK_DATA) {
+                kotlinx.coroutines.delay(500)
+                val already = MockData.propertyLeads.any {
+                    it.propertyId == id && it.buyerId == MockData.currentUser.id
+                }
+                if (!already) {
+                    val prop = MockData.getById(id)
+                    val nowStr = java.text.SimpleDateFormat(
+                        "yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US
+                    ).format(java.util.Date())
+                    MockData.propertyLeads.add(
+                        com.realestate.app.data.models.PropertyLead(
+                            id            = "lead-mock-${java.util.UUID.randomUUID()}",
+                            propertyId    = id,
+                            propertyRef   = prop?.referenceId,
+                            propertyTitle = prop?.title,
+                            ownerId       = prop?.ownerId,
+                            buyerId       = MockData.currentUser.id,
+                            buyerName     = MockData.currentUser.fullName,
+                            buyerPhone    = MockData.currentUser.phone,
+                            buyerEmail    = MockData.currentUser.email,
+                            channel       = channel,
+                            message       = message,
+                            status        = "pending",
+                            createdAt     = nowStr,
+                        )
+                    )
+                }
+                _hasExpressedInterest.value = true
+                _interestState.value = InterestState.Success
+            } else {
+                repo.registerInterest(id, message, channel).fold(
+                    onSuccess = {
+                        _hasExpressedInterest.value = true
+                        _interestState.value = InterestState.Success
+                    },
+                    onFailure = {
+                        _interestState.value = InterestState.Error(it.message ?: "Could not send enquiry")
+                    },
+                )
             }
         }
     }

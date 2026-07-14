@@ -38,6 +38,7 @@ fun MenuScreen(
     onNavigateProfile: () -> Unit,
     onNavigateAdminPanel: () -> Unit,
     onNavigateMyAds: () -> Unit = {},
+    onNavigateMyLeads: () -> Unit = {},
     onNavigateMySearches: () -> Unit = {},
     onNavigateAccountSettings: () -> Unit = {},
     onNavigatePostServiceRequest: () -> Unit = {},
@@ -149,9 +150,10 @@ fun MenuScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    QuickActionItem(icon = Icons.Filled.ListAlt,   label = "My Ads",      onClick = onNavigateMyAds)
+                    QuickActionItem(icon = Icons.Filled.ListAlt,       label = "My Ads",     onClick = onNavigateMyAds)
+                    QuickActionItem(icon = Icons.Filled.MarkEmailRead, label = "Enquiries",  onClick = onNavigateMyLeads)
                 }
             }
         }

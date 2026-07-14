@@ -19,6 +19,7 @@ import com.realestate.app.ui.auth.RegisterScreen
 import com.realestate.app.ui.auth.RoleSelectionScreen
 import com.realestate.app.ui.booking.BookingScreen
 import com.realestate.app.ui.booking.MyBookingsScreen
+import com.realestate.app.ui.leads.LeadsScreen
 import com.realestate.app.ui.myads.MyAdsScreen
 import com.realestate.app.ui.mysearches.MySearchesScreen
 import com.realestate.app.ui.settings.AccountSettingsScreen
@@ -191,6 +192,7 @@ fun AppNavGraph() {
                     onNavigateProfile = { navController.navigate(Screen.Profile.route) },
                     onNavigateAdminPanel = { navController.navigate(Screen.AdminDashboard.route) },
                     onNavigateMyAds = { navController.navigate(Screen.MyAds.route) },
+                    onNavigateMyLeads = { navController.navigate(Screen.MyLeads.route) },
                     onNavigateMySearches = { navController.navigate(Screen.MySearches.route) },
                     onNavigateAccountSettings = { navController.navigate(Screen.AccountSettings.route) },
                     onNavigatePostServiceRequest = { navController.navigate(Screen.PostServiceRequest.route) },
@@ -436,6 +438,14 @@ fun AppNavGraph() {
                                 )
                             )
                         },
+                    )
+                }
+
+                // ── My Leads / Enquiries ─────────────────────────────────────────
+                composable(Screen.MyLeads.route) {
+                    LeadsScreen(
+                        viewModel = hiltViewModel(),
+                        onBack = { navController.popBackStack() },
                     )
                 }
 

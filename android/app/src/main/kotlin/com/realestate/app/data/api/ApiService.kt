@@ -270,6 +270,33 @@ interface ApiService {
     ): Discussion
 
 
+    // ── Property Leads ("I'm Interested") ────────────────────────────────────
+    /** Buyer registers interest in a property listing. */
+    @POST("properties/{propertyId}/interest")
+    suspend fun registerPropertyInterest(
+        @Path("propertyId") propertyId: String,
+        @Body body: PropertyInterestRequest,
+    ): PropertyLead
+
+    /** The current buyer's enquiry history. */
+    @GET("properties/leads/mine")
+    suspend fun getMyLeads(): List<PropertyLead>
+
+    /** Owner/agent: all leads across the current user's listings. */
+    @GET("properties/leads/received")
+    suspend fun getReceivedLeads(): List<PropertyLead>
+
+    /** Owner/agent: leads received on one of their listings. */
+    @GET("properties/{propertyId}/leads")
+    suspend fun getPropertyLeads(@Path("propertyId") propertyId: String): List<PropertyLead>
+
+    /** Owner updates the follow-up status of a lead. */
+    @PATCH("properties/leads/{leadId}/status")
+    suspend fun updateLeadStatus(
+        @Path("leadId") leadId: String,
+        @Body body: LeadStatusUpdateRequest,
+    ): PropertyLead
+
     // ── Admin Extensions ─────────────────────────────────────────────────────
     @GET("admin/users")
     suspend fun listUsers(

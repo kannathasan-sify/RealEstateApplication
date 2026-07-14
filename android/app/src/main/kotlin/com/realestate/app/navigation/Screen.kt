@@ -62,6 +62,7 @@ sealed class Screen(val route: String) {
         fun createRoute(propertyId: String) = "booking/$propertyId"
     }
     object MyBookings           : Screen("my_bookings")
+    object MyLeads              : Screen("my_leads")     // property "I'm Interested" enquiries
 
     // Menu sub-screens
     object MyAds                : Screen("my_ads")
