@@ -15,8 +15,11 @@ from app.schemas.property import PropertyResponse, PropertyListResponse
 from app.services.supabase_client import get_supabase_admin
 from app.middleware.auth_middleware import get_current_user
 from app.routers.properties import PROPERTY_FIELDS
+from app.routers.property_leads import PropertyLeadResponse
 
 router = APIRouter()
+
+_VALID_LEAD_STATUSES = {"pending", "contacted", "visit_scheduled", "converted", "closed", "rejected"}
 
 
 # ── Request / response schemas ────────────────────────────────────────────────
@@ -366,6 +369,113 @@ async def reply_ticket(
     if not result.data:
         raise HTTPException(status_code=404, detail="Ticket not found")
     return {"status": "success", "ticket": result.data[0]}
+
+
+# ── Property Leads / Enquiries Management ────────────────────────────────────
+
+class AdminLeadUpdateRequest(BaseModel):
+    """Body for PATCH /admin/leads/{lead_id} — admin can edit the status, the enquiry
+    message, and/or the buyer's contact details snapshotted on the lead. All fields
+    optional; only the ones sent are changed."""
+    status:      Optional[str] = None   # pending|contacted|visit_scheduled|converted|closed|rejected
+    message:     Optional[str] = None
+    buyer_name:  Optional[str] = None
+    buyer_phone: Optional[str] = None
+    buyer_email: Optional[str] = None
+
+
+@router.get("/leads", response_model=list[PropertyLeadResponse])
+async def admin_list_leads(
+    lead_status: Optional[str] = Query(None, alias="status", description="Filter by lead status"),
+    current_user: dict = Depends(get_current_user),
+):
+    """All property 'I'm Interested' leads across every listing — the Admin Dashboard
+    Enquiries tab. Joins profiles.role for the buyer so the UI can show 'Name (role)'.
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    admin_client = get_supabase_admin()
+    query = (
+        admin_client.table("property_leads")
+        .select("*, profiles!property_leads_buyer_id_fkey(role)")
+        .order("created_at", desc=True)
+    )
+    if lead_status:
+        query = query.eq("status", lead_status.lower())
+
+    result = query.execute()
+
+    leads = []
+    for row in (result.data or []):
+        profile = row.pop("profiles", None) or {}
+        row["buyer_role"] = profile.get("role")
+        leads.append(PropertyLeadResponse(**row))
+    return leads
+
+
+@router.patch("/leads/{lead_id}", response_model=PropertyLeadResponse)
+async def admin_update_lead(
+    lead_id: str,
+    body: AdminLeadUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Admin edits a lead — correct a buyer's phone number, tweak the message, change the
+    follow-up status, or mark it 'rejected' (spam / not a genuine enquiry, distinct from
+    outright deleting it)."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if body.status is not None and body.status.lower() not in _VALID_LEAD_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"status must be one of {sorted(_VALID_LEAD_STATUSES)}",
+        )
+
+    admin_client = get_supabase_admin()
+
+    existing = (
+        admin_client.table("property_leads").select("id").eq("id", lead_id).maybe_single().execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    update_data = {"updated_at": datetime.utcnow().isoformat()}
+    if body.status is not None:
+        update_data["status"] = body.status.lower()
+    if body.message is not None:
+        update_data["message"] = body.message
+    if body.buyer_name is not None:
+        update_data["buyer_name"] = body.buyer_name
+    if body.buyer_phone is not None:
+        update_data["buyer_phone"] = body.buyer_phone
+    if body.buyer_email is not None:
+        update_data["buyer_email"] = body.buyer_email
+
+    result = admin_client.table("property_leads").update(update_data).eq("id", lead_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to update lead")
+    return PropertyLeadResponse(**result.data[0])
+
+
+@router.delete("/leads/{lead_id}")
+async def admin_delete_lead(
+    lead_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Admin permanently deletes a lead (e.g. duplicate or clearly fraudulent enquiry)."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    admin_client = get_supabase_admin()
+    existing = (
+        admin_client.table("property_leads").select("id").eq("id", lead_id).maybe_single().execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    admin_client.table("property_leads").delete().eq("id", lead_id).execute()
+    return {"status": "success", "message": "Lead deleted successfully"}
 
 
 # ── System Stats / View Reports ───────────────────────────────────────────────

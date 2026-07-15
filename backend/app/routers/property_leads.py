@@ -45,15 +45,19 @@ class PropertyLeadResponse(BaseModel):
     buyer_name:     Optional[str]
     buyer_phone:    Optional[str]
     buyer_email:    Optional[str]
+    # Only populated by the admin "all leads" endpoint (joined from profiles.role);
+    # None on the buyer/owner-scoped endpoints below.
+    buyer_role:     Optional[str] = None
     channel:        str
     message:        Optional[str]
     status:         str
     created_at:     str
+    updated_at:     Optional[str] = None
 
 
 class PropertyLeadStatusUpdate(BaseModel):
     """Owner updates the follow-up status of a lead."""
-    status: str = Field(..., pattern="^(pending|contacted|visit_scheduled|converted|closed)$")
+    status: str = Field(..., pattern="^(pending|contacted|visit_scheduled|converted|closed|rejected)$")
 
 
 # ── POST /properties/{property_id}/interest ──────────────────────────────────
