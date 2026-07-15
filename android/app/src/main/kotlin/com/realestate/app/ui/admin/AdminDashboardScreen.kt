@@ -28,6 +28,8 @@ import coil.compose.AsyncImage
 import com.realestate.app.data.models.ApprovalStatus
 import com.realestate.app.data.models.Property
 import com.realestate.app.data.models.User
+import com.realestate.app.data.models.PropertyLead
+import com.realestate.app.data.models.LeadStatus
 import com.realestate.app.data.api.AdminPayment
 import com.realestate.app.data.api.SupportTicket
 import com.realestate.app.data.api.AdminStats
@@ -42,7 +44,7 @@ fun AdminDashboardScreen(
     onBack: () -> Unit,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Properties", "Users", "Payments", "Complaints", "System Stats")
+    val tabs = listOf("Properties", "Users", "Payments", "Complaints", "System Stats", "Enquiries")
 
     val allProperties by viewModel.properties.collectAsState()
     val pending       by viewModel.pending.collectAsState()
@@ -55,6 +57,7 @@ fun AdminDashboardScreen(
     val paymentsList  by viewModel.payments.collectAsState()
     val ticketsList   by viewModel.tickets.collectAsState()
     val systemStats   by viewModel.stats.collectAsState()
+    val leadsList     by viewModel.leads.collectAsState()
 
     // Trigger load of everything on launch
     LaunchedEffect(Unit) {
@@ -90,6 +93,15 @@ fun AdminDashboardScreen(
     var reApprovePropertyId by remember { mutableStateOf("") }
     var reApproveProofNote  by remember { mutableStateOf("") }
     var showReApproveDialog by remember { mutableStateOf(false) }
+
+    // Enquiries (property leads) — edit dialog + delete confirm
+    var editLead          by remember { mutableStateOf<PropertyLead?>(null) }
+    var editStatusDraft   by remember { mutableStateOf("pending") }
+    var editMessageDraft  by remember { mutableStateOf("") }
+    var editNameDraft     by remember { mutableStateOf("") }
+    var editPhoneDraft    by remember { mutableStateOf("") }
+    var editEmailDraft    by remember { mutableStateOf("") }
+    var deleteLeadId      by remember { mutableStateOf<String?>(null) }
 
     // Render verification dialogs
     if (confirmAction != null) {
@@ -304,6 +316,106 @@ fun AdminDashboardScreen(
         )
     }
 
+    // Edit enquiry dialog
+    editLead?.let { lead ->
+        val statusOptions = listOf("pending", "contacted", "visit_scheduled", "converted", "closed", "rejected")
+        AlertDialog(
+            onDismissRequest = { editLead = null },
+            title = { Text("Edit Enquiry", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Property: ${lead.propertyTitle ?: "—"}", fontSize = 12.sp, color = TextSecondary)
+                    OutlinedTextField(
+                        value = editNameDraft,
+                        onValueChange = { editNameDraft = it },
+                        label = { Text("Buyer Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editPhoneDraft,
+                        onValueChange = { editPhoneDraft = it },
+                        label = { Text("Buyer Phone") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editEmailDraft,
+                        onValueChange = { editEmailDraft = it },
+                        label = { Text("Buyer Email") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editMessageDraft,
+                        onValueChange = { editMessageDraft = it },
+                        label = { Text("Message") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3
+                    )
+                    Text("Status", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    statusOptions.forEach { opt ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { editStatusDraft = opt }
+                                .padding(vertical = 2.dp)
+                        ) {
+                            RadioButton(selected = editStatusDraft == opt, onClick = { editStatusDraft = opt })
+                            Spacer(Modifier.width(4.dp))
+                            Text(LeadStatus.from(opt).label, fontSize = 13.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.updateLead(
+                            leadId = lead.id,
+                            status = editStatusDraft,
+                            message = editMessageDraft,
+                            buyerName = editNameDraft,
+                            buyerPhone = editPhoneDraft,
+                            buyerEmail = editEmailDraft,
+                        )
+                        editLead = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NestXBlue)
+                ) {
+                    Text("Save", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editLead = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Delete enquiry confirm dialog
+    deleteLeadId?.let { leadId ->
+        AlertDialog(
+            onDismissRequest = { deleteLeadId = null },
+            title = { Text("Delete Enquiry?", fontWeight = FontWeight.Bold) },
+            text = { Text("Permanently delete this enquiry? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteLead(leadId)
+                        deleteLeadId = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusRejected)
+                ) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteLeadId = null }) { Text("Cancel") }
+            }
+        )
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -385,6 +497,19 @@ fun AdminDashboardScreen(
                             onTicketClick = { selectedTicket = it }
                         )
                         4 -> StatsTabContent(stats = systemStats)
+                        5 -> EnquiriesTabContent(
+                            leads = leadsList,
+                            onEdit = { lead ->
+                                editLead = lead
+                                editStatusDraft = lead.status
+                                editMessageDraft = lead.message ?: ""
+                                editNameDraft = lead.buyerName ?: ""
+                                editPhoneDraft = lead.buyerPhone ?: ""
+                                editEmailDraft = lead.buyerEmail ?: ""
+                            },
+                            onReject = { id -> viewModel.rejectLead(id) },
+                            onDelete = { id -> deleteLeadId = id }
+                        )
                     }
                 }
             }
@@ -707,6 +832,112 @@ private fun ComplaintsTabContent(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── ENQUIRIES (PROPERTY LEADS) PANEL ─────────────────────────────────────────
+
+@Composable
+private fun EnquiriesTabContent(
+    leads: List<PropertyLead>,
+    onEdit: (PropertyLead) -> Unit,
+    onReject: (String) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    if (leads.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No property enquiries yet", color = TextSecondary)
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(leads, key = { it.id }) { lead ->
+                val isRejected = lead.statusEnum == LeadStatus.REJECTED
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    lead.propertyTitle ?: "Property",
+                                    fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                if (!lead.propertyRef.isNullOrBlank()) {
+                                    Text("Ref: ${lead.propertyRef}", fontSize = 11.sp, color = TextSecondary)
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = (if (isRejected) StatusRejected else NestXBlue).copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    lead.statusEnum.label.uppercase(),
+                                    color = if (isRejected) StatusRejected else NestXBlue,
+                                    fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Person, null, tint = TextSecondary, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            val roleLabel = lead.buyerRole?.replaceFirstChar { it.uppercase() } ?: "Buyer"
+                            Text(
+                                "${lead.buyerName?.ifBlank { null } ?: "Unknown"} ($roleLabel)",
+                                fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary
+                            )
+                        }
+                        if (!lead.buyerPhone.isNullOrBlank()) {
+                            Text(lead.buyerPhone, fontSize = 11.sp, color = TextSecondary)
+                        }
+                        if (!lead.message.isNullOrBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "\"${lead.message}\"", fontSize = 12.sp, color = TextSecondary,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        Divider(color = BorderColor, thickness = 0.5.dp)
+                        Spacer(Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { onEdit(lead) }) {
+                                Icon(Icons.Default.Edit, null, tint = NestXBlue, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Edit", color = NestXBlue, fontSize = 12.sp)
+                            }
+                            TextButton(onClick = { onReject(lead.id) }, enabled = !isRejected) {
+                                Icon(
+                                    Icons.Default.Block, null,
+                                    tint = if (isRejected) TextSecondary else StatusPending,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    if (isRejected) "Rejected" else "Reject",
+                                    color = if (isRejected) TextSecondary else StatusPending, fontSize = 12.sp
+                                )
+                            }
+                            TextButton(onClick = { onDelete(lead.id) }) {
+                                Icon(Icons.Default.Delete, null, tint = PrimaryRed, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Delete", color = PrimaryRed, fontSize = 12.sp)
+                            }
                         }
                     }
                 }

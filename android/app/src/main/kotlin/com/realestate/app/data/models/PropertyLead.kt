@@ -19,10 +19,14 @@ data class PropertyLead(
     @SerializedName("buyer_name")     val buyerName: String?    = null,
     @SerializedName("buyer_phone")    val buyerPhone: String?   = null,
     @SerializedName("buyer_email")    val buyerEmail: String?   = null,
+    // Only populated by the admin "all leads" endpoint (joined from profiles.role) —
+    // null on the buyer/owner-scoped endpoints.
+    @SerializedName("buyer_role")     val buyerRole: String?    = null,
     @SerializedName("channel")        val channel: String       = "app",
     @SerializedName("message")        val message: String?      = null,
     @SerializedName("status")         val status: String        = "pending",
     @SerializedName("created_at")     val createdAt: String     = "",
+    @SerializedName("updated_at")     val updatedAt: String?    = null,
 ) {
     val statusEnum: LeadStatus get() = LeadStatus.from(status)
 }
@@ -32,7 +36,8 @@ enum class LeadStatus(val label: String) {
     CONTACTED("Contacted"),
     VISIT_SCHEDULED("Visit Scheduled"),
     CONVERTED("Converted"),
-    CLOSED("Closed");
+    CLOSED("Closed"),
+    REJECTED("Rejected");
 
     companion object {
         fun from(key: String?): LeadStatus =
@@ -49,4 +54,14 @@ data class PropertyInterestRequest(
 /** Body for PATCH /properties/leads/{id}/status. */
 data class LeadStatusUpdateRequest(
     @SerializedName("status") val status: String,
+)
+
+/** Body for PATCH /admin/leads/{id} — admin edit of status, message, and/or buyer contact info.
+ * All fields optional; only non-null ones are changed server-side. */
+data class AdminLeadUpdateRequest(
+    @SerializedName("status")      val status: String?      = null,
+    @SerializedName("message")     val message: String?     = null,
+    @SerializedName("buyer_name")  val buyerName: String?    = null,
+    @SerializedName("buyer_phone") val buyerPhone: String?   = null,
+    @SerializedName("buyer_email") val buyerEmail: String?   = null,
 )

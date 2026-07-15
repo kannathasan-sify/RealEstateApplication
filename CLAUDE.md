@@ -1,6 +1,6 @@
 # Real Estate App — CLAUDE.md (Full Development Guide)
 # Brand: NestX  |  Original UI Reference: Dubizzle Android App
-# Last Updated: 2026-07-13 (refreshed from actual codebase — see "Doc Drift Notes" at bottom)
+# Last Updated: 2026-07-15 (added Admin Dashboard "Enquiries" tab + property_leads docs — see "Doc Drift Notes" at bottom)
 
 ---
 
@@ -158,7 +158,9 @@ Real_Estate_App/
     │   ├── 014_add_ground_listing_type.sql ← ground listing type (sports grounds etc.)
     │   ├── 015_add_metadata_column.sql     ← properties.metadata JSONB (per-listing-type extra fields)
     │   ├── 016_ad_interests.sql
-    │   └── 017_ad_analytics.sql
+    │   ├── 017_ad_analytics.sql
+    │   ├── 018_property_leads.sql          ← property_leads table ("I'm Interested" on a listing)
+    │   └── 019_property_leads_rejected_status.sql  ← adds 'rejected' to property_leads.status
     └── seed.sql
 ```
 
@@ -249,7 +251,7 @@ The backend and DB, however, still carry legacy role values (see Doc Drift Notes
 | 30 | Service Request Feed | ServiceRequestFeedScreen.kt | **NEW** — district/radius/category filters |
 | 31 | Service Request Detail | ServiceRequestDetailScreen.kt | **NEW** — quotations list, accept/reject |
 | 32 | Subscription Plans | SubscriptionPlansScreen.kt | **NEW** — free/silver/gold/platinum/contractor |
-| 33 | Admin Dashboard | AdminDashboardScreen.kt | **NEW** — nested graph, shared `AdminViewModel`: Properties/Users/Payments/Complaints/Stats tabs |
+| 33 | Admin Dashboard | AdminDashboardScreen.kt | **NEW** — nested graph, shared `AdminViewModel`: Properties/Users/Payments/Complaints/Stats/**Enquiries** tabs (6 tabs) |
 | 34 | Admin Property Review | AdminPropertyReviewScreen.kt | **NEW** — approve/reject bottom sheet |
 
 **Bottom nav has shrunk to 2 fixed tabs: Home and Menu.** Saved and Chat were removed from the nav bar (still reachable from Menu). The "+" Place-an-Ad button navigates directly into the nested `post_ad_graph`, not a tab.
@@ -361,9 +363,10 @@ Beyond property approval, `admin.py` now covers a full back-office surface, all 
 - **Users**: list/filter by role/verified; verify toggle; role change; delete user
 - **Payments**: read-only ledger (joined with profile/email)
 - **Support tickets**: list, reply (auto-resolves)
+- **Property Leads / Enquiries** (added 2026-07-15): `GET /admin/leads` — every `property_leads` row across every listing app-wide (not owner/buyer-scoped like the regular leads endpoints), joined with `profiles.role` so the row carries `buyer_role` for a "Name (role)" display; `PATCH /admin/leads/{id}` — edit status/message/buyer_name/buyer_phone/buyer_email (all fields optional, only sent ones change); `DELETE /admin/leads/{id}` — permanently delete a lead. `status` now also accepts `rejected` (added by migration `019_property_leads_rejected_status.sql`, admin-only quick action distinct from delete) alongside the original `pending|contacted|visit_scheduled|converted|closed`.
 - **Stats**: `GET /reports/stats` — total properties/pending/users/agents/builders, total revenue (INR), complaint counts
 
-Android: `AdminDashboardScreen.kt` (5 tabs: Properties/Users/Payments/Complaints/Stats) + `AdminPropertyReviewScreen.kt` + shared `AdminViewModel.kt`.
+Android: `AdminDashboardScreen.kt` (6 tabs: Properties/Users/Payments/Complaints/Stats/**Enquiries**) + `AdminPropertyReviewScreen.kt` + shared `AdminViewModel.kt`. The Enquiries tab (`EnquiriesTabContent`) lists every lead with an Edit (status/message/buyer contact info dialog), Reject (quick status→`rejected`), and Delete action per row — distinct from the buyer/owner-scoped "Enquiries" screen under Menu (`ui/leads/LeadsScreen.kt`), which only shows the current user's own sent/received leads.
 
 ### 13. Support Tickets
 Simple complaint system, separate from Admin:
@@ -419,7 +422,30 @@ Per-listing-type extra fields live in `properties.metadata JSONB` (migration 015
 
 ## Database Schema (current tables)
 
-`profiles, agencies, properties, bookings, reviews, saved_properties, saved_searches, payments, support_tickets, service_requests, quotations, ad_interests, ad_analytics, property_discussions (⚠ referenced in code, no committed migration file)`. `public_properties` is a **view**, not a table (migration 008).
+`profiles, agencies, properties, bookings, reviews, saved_properties, saved_searches, payments, support_tickets, service_requests, quotations, ad_interests, ad_analytics, property_discussions (⚠ referenced in code, no committed migration file), property_leads (migration 018 + 019 — has a committed migration, unlike property_discussions)`. `public_properties` is a **view**, not a table (migration 008).
+
+### property_leads
+```sql
+CREATE TABLE property_leads (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id    UUID REFERENCES properties(id) ON DELETE CASCADE,
+  property_ref   TEXT,
+  property_title TEXT,
+  owner_id       UUID REFERENCES profiles(id),
+  buyer_id       UUID REFERENCES profiles(id),
+  buyer_name     TEXT,
+  buyer_phone    TEXT,
+  buyer_email    TEXT,
+  channel        TEXT DEFAULT 'app',   -- app | whatsapp | call
+  message        TEXT,
+  status         TEXT DEFAULT 'pending'
+                 CHECK (status IN ('pending','contacted','visit_scheduled','converted','closed','rejected')),  -- 'rejected' added by migration 019
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(property_id, buyer_id)
+);
+```
+Buyer/owner-scoped router: `backend/app/routers/property_leads.py` (`POST /properties/{id}/interest`, `GET /properties/leads/mine`, `GET /properties/leads/received`, `GET /properties/{id}/leads`, `PATCH /properties/leads/{id}/status`). Admin-wide surface (all leads, any owner/buyer): `backend/app/routers/admin.py` `GET/PATCH/DELETE /admin/leads` (see Admin Back-Office section above).
 
 ### profiles
 ```sql
@@ -805,6 +831,9 @@ All prefixed `/api/v1` unless noted.
 | GET | /payments | Payment ledger |
 | GET | /tickets?status= | List support tickets |
 | POST | /tickets/{id}/reply | Reply + resolve |
+| GET | /leads?status= | All property leads app-wide, incl. `buyer_role` (Enquiries tab) |
+| PATCH | /leads/{id} | Edit lead status/message/buyer contact info |
+| DELETE | /leads/{id} | Permanently delete a lead |
 | GET | /reports/stats | Dashboard stats |
 
 ### Filter Query Params (Properties list)
@@ -999,6 +1028,18 @@ CREATE POLICY "admin_read_all" ON ad_analytics FOR SELECT USING (
 
 ALTER TABLE support_tickets ENABLE ROW LEVEL SECURITY;
 -- users insert/view own tickets; admins full access
+
+ALTER TABLE property_leads ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "buyer_own_leads" ON property_leads FOR SELECT USING (auth.uid() = buyer_id);
+CREATE POLICY "owner_incoming_leads" ON property_leads FOR SELECT USING (auth.uid() = owner_id);
+CREATE POLICY "buyer_insert_lead" ON property_leads FOR INSERT WITH CHECK (auth.uid() = buyer_id);
+CREATE POLICY "owner_update_lead" ON property_leads FOR UPDATE USING (auth.uid() = owner_id);
+CREATE POLICY "admin_all_leads" ON property_leads USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+-- `/admin/leads` endpoints use the service-role client (bypasses RLS in Python instead),
+-- same pattern as every other admin.py route — the admin_all_leads policy above only
+-- matters if property_leads is ever queried with the anon/user-scoped client.
 ```
 
 ---
@@ -1140,7 +1181,8 @@ These are real inconsistencies found across the codebase, not stylistic choices 
 
 2. **`listed_by` has ballooned to 8 values**: `landlord, agent, agency, developer, builder, individual, company, owner` (final state after migration 013) — far beyond the `landlord|agent|agency|developer` in earlier docs. Decide the real intended set.
 
-3. **`property_type`/`listing_type` in `schemas/property.py` (Pydantic) go further than the SQL `CHECK` constraints on disk** — e.g. a `maintenance` listing_type and many contractor/maintenance property_type values (`civil_contractor`, `electrician`, `ac_service`, `pest_control`, etc.) exist in Python validation but may not be reflected in the DB constraint. Risk: valid-per-API payloads could be rejected at the DB layer, or vice versa. Audit and sync.
+3. **`property_type`/`listing_type` in `schemas/property.py` (Pydantic) go further than the SQL `CHECK` constraints on disk** — e.g. a `maintenance` listing_type and many contractor/maintenance property_type values (`civil_contractor`, `electrician`, `ac_service`, `pest_control`, etc.) exist in Python validation but may not be reflected in the DB constraint (`supabase/migrations/013_add_new_listing_types.sql` still has its own, different vocabulary — `building`, `villa_house`, `civil_work`, `painting_work`, `air_conditioning`, `household_equipment`, `plumbing`, etc. — none of which are in the Pydantic enum). Audit and sync the DB constraint eventually.
+   - ⚠ **This bit Android in production (fixed 2026-07-15):** `PostAdViewModel.kt`'s `submitAd()` had a hardcoded label→`property_type` map written against the *DB constraint's* old vocabulary (`civil_work`, `building`, `villa_house`, `interior_fitout`, `painting_work`, `air_conditioning`, `household_equipment`) instead of the Pydantic enum FastAPI actually validates against — every Construction/Maintenance/Farmhouse submission 400'd with `Validation Error: property_type: Input should be 'apartment', 'villa', ...`. Since Pydantic validation runs before the DB is ever touched, the DB constraint's vocabulary was effectively dead code from the client's perspective. Fixed by remapping each sub-category label to its correct Pydantic `PropertyType` member (e.g. `"Civil Contractors" -> "civil_contractor"`, `"Farmhouse" -> "farmhouse"`, `"AC Service" -> "ac_service"`). The DB `CHECK` constraint itself is still stale and should be reconciled to the Pydantic vocabulary (or dropped in favor of enforcing only at the API layer) so this class of bug can't recur from either direction.
 
 4. **`property_discussions` table has no committed migration file** — the router has a fallback in-memory cache specifically because the table may not exist. Add a real migration (draft provided above) before shipping this feature to a new environment.
 

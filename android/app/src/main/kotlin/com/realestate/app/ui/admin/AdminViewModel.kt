@@ -6,6 +6,7 @@ import com.realestate.app.BuildConfig
 import com.realestate.app.data.models.ApprovalStatus
 import com.realestate.app.data.models.Property
 import com.realestate.app.data.models.User
+import com.realestate.app.data.models.PropertyLead
 import com.realestate.app.data.api.AdminPayment
 import com.realestate.app.data.api.SupportTicket
 import com.realestate.app.data.api.AdminStats
@@ -26,6 +27,7 @@ class AdminViewModel @Inject constructor(
     val payments = MutableStateFlow<List<AdminPayment>>(emptyList())
     val tickets = MutableStateFlow<List<SupportTicket>>(emptyList())
     val stats = MutableStateFlow<AdminStats?>(null)
+    val leads = MutableStateFlow<List<PropertyLead>>(emptyList())
 
     // ── Loading / error state ─────────────────────────────────────────────────
     private val _isLoading = MutableStateFlow(false)
@@ -71,6 +73,7 @@ class AdminViewModel @Inject constructor(
         loadPayments()
         loadTickets()
         loadStats()
+        loadLeads()
     }
 
     fun loadAllProperties() {
@@ -295,6 +298,70 @@ class AdminViewModel @Inject constructor(
             }.onFailure {
                 _errorMessage.value = it.message ?: "Failed to load stats"
             }
+        }
+    }
+
+    // ── Enquiries (Property Leads) — Admin Extensions ─────────────────────────
+
+    /** All "I'm Interested" leads across every listing, for the Admin Enquiries tab. */
+    fun loadLeads() {
+        if (BuildConfig.USE_MOCK_DATA) {
+            leads.value = MockData.propertyLeads.sortedByDescending { it.createdAt }
+            return
+        }
+        viewModelScope.launch {
+            propertyRepo.getAllLeadsAdmin().onSuccess {
+                leads.value = it
+            }.onFailure {
+                _errorMessage.value = it.message ?: "Failed to load enquiries"
+            }
+        }
+    }
+
+    /** Edit a lead's status, message, and/or buyer contact info. */
+    fun updateLead(
+        leadId: String,
+        status: String? = null,
+        message: String? = null,
+        buyerName: String? = null,
+        buyerPhone: String? = null,
+        buyerEmail: String? = null,
+    ) {
+        if (BuildConfig.USE_MOCK_DATA) {
+            val idx = MockData.propertyLeads.indexOfFirst { it.id == leadId }
+            if (idx >= 0) {
+                val current = MockData.propertyLeads[idx]
+                MockData.propertyLeads[idx] = current.copy(
+                    status     = status ?: current.status,
+                    message    = message ?: current.message,
+                    buyerName  = buyerName ?: current.buyerName,
+                    buyerPhone = buyerPhone ?: current.buyerPhone,
+                    buyerEmail = buyerEmail ?: current.buyerEmail,
+                )
+            }
+            loadLeads()
+            return
+        }
+        viewModelScope.launch {
+            propertyRepo.updateLeadAdmin(leadId, status, message, buyerName, buyerPhone, buyerEmail)
+                .onSuccess { loadLeads() }
+                .onFailure { _errorMessage.value = it.message ?: "Failed to update enquiry" }
+        }
+    }
+
+    /** Quick action: mark a lead as rejected (spam / not a genuine enquiry). */
+    fun rejectLead(leadId: String) = updateLead(leadId, status = "rejected")
+
+    fun deleteLead(leadId: String) {
+        if (BuildConfig.USE_MOCK_DATA) {
+            MockData.propertyLeads.removeAll { it.id == leadId }
+            loadLeads()
+            return
+        }
+        viewModelScope.launch {
+            propertyRepo.deleteLeadAdmin(leadId)
+                .onSuccess { loadLeads() }
+                .onFailure { _errorMessage.value = it.message ?: "Failed to delete enquiry" }
         }
     }
 

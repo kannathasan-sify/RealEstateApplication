@@ -339,6 +339,11 @@ class PostAdViewModel @Inject constructor(
             val docUrls = documentUris.value.map { "https://supabase.co/storage/v1/object/public/documents/${it.lastPathSegment}" }
             val prevProjUrls = previousProjectUris.value.map { "https://supabase.co/storage/v1/object/public/contractor_projects/${it.lastPathSegment}" }
 
+            // NOTE (fixed 2026-07-15): these values must match backend/app/schemas/property.py's
+            // PropertyType Pydantic enum exactly — FastAPI validates the request body against
+            // that enum BEFORE it ever reaches the DB, so the old values here (matched against
+            // the Postgres CHECK constraint's vocabulary instead) were rejected with a 400 on
+            // every Construction/Maintenance/Farmhouse submission. See CLAUDE.md Doc Drift Note #3.
             val rawPropertyType = subCategory.value.trim()
             val propertyTypeValue = when (rawPropertyType) {
                 // Buy & Rent
@@ -348,32 +353,34 @@ class PostAdViewModel @Inject constructor(
                 "Home Stay / PG" -> "room"
                 "Industrial Properties" -> "industrial_land"
                 "Agricultural Land" -> "land"
-                "Farmhouse" -> "villa_house"
+                "Farmhouse" -> "farmhouse"
 
                 // Construction (Contractor)
-                "Civil Contractors" -> "civil_work"
-                "Builders" -> "building"
-                "Architects" -> "building"
-                "Structural Engineers" -> "civil_work"
-                "Interior Designers" -> "interior_fitout"
-                "Plumbing" -> "plumbing"
-                "Electrical" -> "household_equipment"
-                "Painting" -> "painting_work"
-                "False Ceiling" -> "interior_fitout"
-                "Tiles" -> "civil_work"
-                "Roofing" -> "civil_work"
-                "Landscaping" -> "other"
+                "Civil Contractors" -> "civil_contractor"
+                "Builders" -> "builder"
+                "Architects" -> "architect"
+                "Structural Engineers" -> "structural_engineer"
+                "Interior Designers" -> "interior_designer"
+                "Plumbing" -> "plumbing_contractor"
+                "Electrical" -> "electrical_contractor"
+                // "Painting" is used by both the Construction and Maintenance sub-category
+                // lists with the identical label, so disambiguate via the selected category.
+                "Painting" -> if (isConstruction) "painting_contractor" else "painting_service"
+                "False Ceiling" -> "false_ceiling"
+                "Tiles" -> "tiles_contractor"
+                "Roofing" -> "roofing"
+                "Landscaping" -> "landscaping"
 
                 // Maintenance (Contractor)
-                "Electrician" -> "household_equipment"
-                "Plumber" -> "plumbing"
-                "Carpenter" -> "interior_fitout"
-                "AC Service" -> "air_conditioning"
-                "CCTV" -> "household_equipment"
-                "Cleaning" -> "other"
-                "Pest Control" -> "other"
-                "Borewell" -> "civil_work"
-                "Water Tank Cleaning" -> "other"
+                "Electrician" -> "electrician"
+                "Plumber" -> "plumber"
+                "Carpenter" -> "carpenter"
+                "AC Service" -> "ac_service"
+                "CCTV" -> "cctv_service"
+                "Cleaning" -> "cleaning_service"
+                "Pest Control" -> "pest_control"
+                "Borewell" -> "borewell"
+                "Water Tank Cleaning" -> "water_tank_cleaning"
 
                 else -> rawPropertyType.lowercase().replace(" ", "_").replace("/", "_").ifBlank { "apartment" }
             }

@@ -334,6 +334,21 @@ interface ApiService {
     @GET("admin/reports/stats")
     suspend fun getSystemStats(): AdminStats
 
+    /** Admin: every property lead ("I'm Interested") across every listing, incl. buyer_role. */
+    @GET("admin/leads")
+    suspend fun getAllLeadsAdmin(@Query("status") status: String? = null): List<PropertyLead>
+
+    /** Admin: edit a lead's status, message, or buyer contact info. */
+    @PATCH("admin/leads/{leadId}")
+    suspend fun updateLeadAdmin(
+        @Path("leadId") leadId: String,
+        @Body body: AdminLeadUpdateRequest,
+    ): PropertyLead
+
+    /** Admin: permanently delete a lead. */
+    @DELETE("admin/leads/{leadId}")
+    suspend fun deleteLeadAdmin(@Path("leadId") leadId: String): Map<String, String>
+
     @DELETE("properties/{id}")
     suspend fun deleteProperty(@Path("id") id: String): Map<String, String>
 

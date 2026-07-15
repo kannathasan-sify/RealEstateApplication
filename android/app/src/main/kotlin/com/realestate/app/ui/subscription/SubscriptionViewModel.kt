@@ -19,6 +19,28 @@ sealed class SubscriptionUiState {
     data class Error(val message: String) : SubscriptionUiState()
 }
 
+/** Minimum/default plan every user falls back to once a paid plan lapses. */
+const val MIN_TIER = "free"
+
+/**
+ * True if [expiresAt] (an ISO datetime string from the backend, e.g. "2026-07-15T10:30:00")
+ * is in the past. Compares by date only (matches the "Expires: yyyy-MM-dd" truncation
+ * already shown in the UI) — the authoritative check is still server-side; this is a
+ * client-side pre-flight guard so the UI doesn't offer actions the backend will reject.
+ */
+fun isSubscriptionExpired(expiresAt: String?): Boolean {
+    if (expiresAt.isNullOrBlank()) return false
+    return runCatching {
+        val expiryDate = expiresAt.take(10)
+        val today = java.time.LocalDate.now().toString()
+        expiryDate < today
+    }.getOrDefault(false)
+}
+
+/** True if the user currently has a paid plan that hasn't expired yet. */
+fun isActivePaidPlan(details: SubscriptionDetails): Boolean =
+    details.subscriptionTier != MIN_TIER && !isSubscriptionExpired(details.subscriptionExpiresAt)
+
 @HiltViewModel
 class SubscriptionViewModel @Inject constructor(
     private val repo: PropertyRepository
@@ -49,6 +71,26 @@ class SubscriptionViewModel @Inject constructor(
     }
 
     fun upgradePlan(tier: String) {
+        // Pre-flight validation, mirroring the backend's rules — avoids a round-trip for
+        // the two disallowed cases: re-buying the same active plan, or downgrading to the
+        // minimum (Free) plan while a paid plan is still active.
+        val current = (_uiState.value as? SubscriptionUiState.Success)?.details
+        if (current != null && isActivePaidPlan(current)) {
+            val expiryNote = current.subscriptionExpiresAt?.take(10)?.let { " until $it" } ?: ""
+            if (tier == current.subscriptionTier) {
+                upgradeState.value = UpgradeState.Error(
+                    "You already have an active ${current.subscriptionTier.replaceFirstChar { it.uppercase() }} plan$expiryNote."
+                )
+                return
+            }
+            if (tier == MIN_TIER) {
+                upgradeState.value = UpgradeState.Error(
+                    "Your ${current.subscriptionTier.replaceFirstChar { it.uppercase() }} plan is still active$expiryNote. You can't downgrade to Free until it expires."
+                )
+                return
+            }
+        }
+
         viewModelScope.launch {
             upgradeState.value = UpgradeState.Loading
             if (BuildConfig.USE_MOCK_DATA) {

@@ -216,6 +216,7 @@ private fun LeadStatusChip(status: LeadStatus) {
         LeadStatus.VISIT_SCHEDULED -> NestXBlue
         LeadStatus.CONVERTED       -> StatusApproved
         LeadStatus.CLOSED          -> TextSecondary
+        LeadStatus.REJECTED        -> StatusRejected
     }
     Surface(shape = RoundedCornerShape(8.dp), color = color.copy(alpha = 0.12f)) {
         Text(

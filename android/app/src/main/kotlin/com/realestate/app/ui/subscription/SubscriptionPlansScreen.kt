@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -39,7 +40,19 @@ fun SubscriptionPlansScreen(
     val uiState by viewModel.uiState.collectAsState()
     val upgradeState by viewModel.upgradeState.collectAsState()
 
-    var selectedPlan by remember { mutableStateOf("silver") }
+    val currentDetails = (uiState as? SubscriptionUiState.Success)?.details
+    val currentTier = currentDetails?.subscriptionTier
+    val isCurrentActive = currentDetails != null && isActivePaidPlan(currentDetails)
+
+    var selectedPlan by remember { mutableStateOf<String?>(null) }
+    // Default the selection to the user's current plan once it's known, but only once —
+    // after that the user's own taps drive it.
+    LaunchedEffect(currentTier) {
+        if (selectedPlan == null && currentTier != null) {
+            selectedPlan = currentTier
+        }
+    }
+    val effectiveSelected = selectedPlan ?: "silver"
 
     val plans = listOf(
         PlanInfo(
@@ -168,19 +181,25 @@ fun SubscriptionPlansScreen(
 
             // Render Premium plan cards
             plans.forEach { plan ->
-                val isSelected = selectedPlan == plan.tier
+                val isSelected = effectiveSelected == plan.tier
+                val isThisCurrentActivePlan = isCurrentActive && plan.tier == currentTier
+                // Rule: can't downgrade to the minimum (Free) plan while a paid plan is active.
+                val isFreeLockedWhileActive = plan.tier == MIN_TIER && isCurrentActive
+                val cardEnabled = !isThisCurrentActivePlan && !isFreeLockedWhileActive
                 val borderStroke = if (isSelected) {
                     Modifier.border(2.dp, NestXBlue, RoundedCornerShape(16.dp))
                 } else Modifier
 
                 Card(
                     onClick = { selectedPlan = plan.tier },
+                    enabled = cardEnabled,
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 6.dp else 2.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(borderStroke)
+                        .alpha(if (!cardEnabled) 0.55f else 1f)
                 ) {
                     Column {
                         // Plan header with Gradient
@@ -206,6 +225,37 @@ fun SubscriptionPlansScreen(
                                     color = Color.White,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Current-plan / locked-plan status badge
+                        if (isThisCurrentActivePlan) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = StatusApproved.copy(alpha = 0.12f),
+                                modifier = Modifier.padding(start = 16.dp, top = 10.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.CheckCircle, null, tint = StatusApproved, modifier = Modifier.size(13.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Your Current Active Plan", fontSize = 11.sp, color = StatusApproved, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        } else if (isFreeLockedWhileActive) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = TextSecondary.copy(alpha = 0.10f),
+                                modifier = Modifier.padding(start = 16.dp, top = 10.dp)
+                            ) {
+                                Text(
+                                    "Available once your current plan expires",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
@@ -239,19 +289,40 @@ fun SubscriptionPlansScreen(
                 )
             }
 
+            // Rules: block re-buying the same active plan, and block downgrading to Free
+            // while a paid plan is still active. The button label/enabled state reflects
+            // whichever of those applies to the currently-selected plan.
+            val isSameActivePlanSelected = isCurrentActive && effectiveSelected == currentTier
+            val isFreeDowngradeSelected = isCurrentActive && effectiveSelected == MIN_TIER
+            val submitBlocked = isSameActivePlanSelected || isFreeDowngradeSelected
+
             Button(
                 onClick = {
-                    viewModel.upgradePlan(selectedPlan)
+                    viewModel.upgradePlan(effectiveSelected)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed),
-                enabled = upgradeState !is UpgradeState.Loading
+                enabled = upgradeState !is UpgradeState.Loading && !submitBlocked
             ) {
                 if (upgradeState is UpgradeState.Loading) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                } else if (isSameActivePlanSelected) {
+                    Text(
+                        text = "Current Active Plan",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                } else if (isFreeDowngradeSelected) {
+                    Text(
+                        text = "Can't Downgrade While Active",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
                 } else {
                     Text(
                         text = "Subscribe / Upgrade Plan",

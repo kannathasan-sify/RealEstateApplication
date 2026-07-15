@@ -301,6 +301,29 @@ class PropertyRepository @Inject constructor(
         api.getSystemStats()
     }
 
+    /** Admin: every property lead across every listing (Enquiries tab), incl. buyer_role. */
+    suspend fun getAllLeadsAdmin(status: String? = null): Result<List<PropertyLead>> = runCatching {
+        api.getAllLeadsAdmin(status)
+    }
+
+    /** Admin: edit a lead's status / message / buyer contact info. */
+    suspend fun updateLeadAdmin(
+        leadId: String,
+        status: String? = null,
+        message: String? = null,
+        buyerName: String? = null,
+        buyerPhone: String? = null,
+        buyerEmail: String? = null,
+    ): Result<PropertyLead> = runCatching {
+        api.updateLeadAdmin(leadId, AdminLeadUpdateRequest(status, message, buyerName, buyerPhone, buyerEmail))
+    }
+
+    /** Admin: permanently delete a lead. */
+    suspend fun deleteLeadAdmin(leadId: String): Result<Unit> = runCatching {
+        api.deleteLeadAdmin(leadId)
+        Unit
+    }
+
 
     // ── Support ──────────────────────────────────────────────────────────────
     suspend fun createSupportTicket(subject: String, description: String): Result<SupportTicket> = runCatching {
