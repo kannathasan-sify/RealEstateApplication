@@ -109,7 +109,12 @@ class PropertyViewModel @Inject constructor(
                 repo.listProperties(
                     district = effectiveFilter.district.takeIf { it.isNotBlank() },
                     neighborhood = effectiveFilter.area.takeIf { it.isNotBlank() },
-                    listingType = effectiveFilter.listingType.takeIf { it.isNotBlank() && it != "all" },
+                    // When a work-category is active (Construction/Maintenance), match by
+                    // work_category alone and DON'T pin listing_type — maintenance listings are
+                    // stored as listing_type="maintenance" while older/mock ones use "contractor",
+                    // and both carry metadata.work_category. Pinning listing_type would hide one set.
+                    listingType = effectiveFilter.listingType
+                        .takeIf { it.isNotBlank() && it != "all" && effectiveFilter.workCategory == null },
                     propertyType = effectiveFilter.propertyType,
                     minPrice = effectiveFilter.minPrice.toDouble().takeIf { it > 0 },
                     maxPrice = effectiveFilter.maxPrice.toDouble().takeIf { it < 20_000_000 },
@@ -145,6 +150,9 @@ class PropertyViewModel @Inject constructor(
         val reset = PropertyFilterState(
             district = if (district == "All TN") "" else district,
             listingType = _currentFilter.value.listingType,
+            // Keep the module's work-category so "Clear Filters" inside Construction/Maintenance
+            // doesn't fall back to showing every contractor listing mixed together.
+            workCategory = _currentFilter.value.workCategory,
         )
         loadProperties(district = district, filter = reset)
     }
@@ -283,7 +291,10 @@ class PropertyViewModel @Inject constructor(
     ): List<Property> {
         var result = props
 
-        if (filter.listingType.isNotBlank() && filter.listingType != "all")
+        // Skip the listing_type match when a work-category is active — match Construction/
+        // Maintenance by work_category (below) so both listing_type="contractor" and
+        // listing_type="maintenance" records show. Mirrors the API path in loadProperties().
+        if (filter.listingType.isNotBlank() && filter.listingType != "all" && filter.workCategory == null)
             result = result.filter { it.listingType.equals(filter.listingType, ignoreCase = true) }
 
         if (filter.district.isNotBlank())

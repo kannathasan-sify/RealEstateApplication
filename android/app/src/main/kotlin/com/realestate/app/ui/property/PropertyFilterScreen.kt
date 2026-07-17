@@ -54,6 +54,8 @@ fun PropertyFilterScreen(
     // Category-specific sub-type filters
     var contractorType    by remember { mutableStateOf(initialFilter.contractorType) }
     var serviceType       by remember { mutableStateOf(initialFilter.serviceType) }
+    // Construction vs Maintenance are BOTH listingType="contractor"; workCategory tells them apart.
+    var workCategory      by remember { mutableStateOf(initialFilter.workCategory) }
 
     // Dropdown expanded states
     var districtExpanded  by remember { mutableStateOf(false) }
@@ -90,8 +92,9 @@ fun PropertyFilterScreen(
             radiusKm       = radiusKm,
             centerLat      = centerLat,
             centerLng      = centerLng,
-            contractorType = if (listingType == "contractor") contractorType else null,
-            serviceType    = if (listingType == "maintenance") serviceType else null,
+            workCategory   = workCategory,
+            contractorType = if (listingType == "contractor" && workCategory != "maintenance") contractorType else null,
+            serviceType    = if (listingType == "contractor" && workCategory == "maintenance") serviceType else null,
         )
     }
 
@@ -105,6 +108,7 @@ fun PropertyFilterScreen(
         radiusKm = null
         contractorType = null
         serviceType = null
+        workCategory = null
     }
 
     Scaffold(
@@ -177,6 +181,14 @@ fun PropertyFilterScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Construction & Maintenance are both listingType="contractor", told apart by
+                // workCategory — so derive which chip is "selected" from both, and map a chip
+                // tap back onto the correct (listingType, workCategory) pair.
+                val selectedTypeKey = when {
+                    listingType == "contractor" && workCategory == "maintenance" -> "maintenance"
+                    listingType == "contractor"                                  -> "contractor"
+                    else                                                         -> listingType
+                }
                 listOf(
                     "rent" to "Rent",
                     "sale" to "Buy",
@@ -187,8 +199,14 @@ fun PropertyFilterScreen(
                 ).forEach { (type, label) ->
                     RealEstateFilterChip(
                         label    = label,
-                        selected = listingType == type,
-                        onClick  = { listingType = type }
+                        selected = selectedTypeKey == type,
+                        onClick  = {
+                            when (type) {
+                                "contractor"  -> { listingType = "contractor"; workCategory = "construction" }
+                                "maintenance" -> { listingType = "contractor"; workCategory = "maintenance" }
+                                else          -> { listingType = type; workCategory = null }
+                            }
+                        }
                     )
                 }
             }
@@ -283,8 +301,8 @@ fun PropertyFilterScreen(
                 }
             }
 
-            // ── Contractor sub-types ──────────────────────────────────────────
-            if (listingType == "contractor") {
+            // ── Contractor sub-types (Construction only) ──────────────────────
+            if (listingType == "contractor" && workCategory != "maintenance") {
                 Spacer(Modifier.height(20.dp))
                 FilterSectionTitle("Contractor Work Type")
                 Spacer(Modifier.height(8.dp))
@@ -323,8 +341,8 @@ fun PropertyFilterScreen(
                 }
             }
 
-            // ── Maintenance sub-types ─────────────────────────────────────────
-            if (listingType == "maintenance") {
+            // ── Maintenance sub-types (contractor + workCategory=maintenance) ──
+            if (listingType == "contractor" && workCategory == "maintenance") {
                 Spacer(Modifier.height(20.dp))
                 FilterSectionTitle("Service Type")
                 Spacer(Modifier.height(8.dp))

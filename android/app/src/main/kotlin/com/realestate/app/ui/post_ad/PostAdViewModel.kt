@@ -341,12 +341,10 @@ class PostAdViewModel @Inject constructor(
 
             // NOTE (fixed 2026-07-15): these values must match backend/app/schemas/property.py's
             // PropertyType Pydantic enum exactly — FastAPI validates the request body against
-            // that enum BEFORE it ever reaches the DB, so the old values here (matched against
-            // the Postgres CHECK constraint's vocabulary instead) were rejected with a 400 on
-            // every Construction/Maintenance/Farmhouse submission. See CLAUDE.md Doc Drift Note #3.
+            // that enum BEFORE it ever reaches the DB. See CLAUDE.md Doc Drift Note #3.
             val rawPropertyType = subCategory.value.trim()
             val propertyTypeValue = when (rawPropertyType) {
-                // Buy & Rent
+                // Buy & Rent (not covered by the shared Construction/Maintenance mapper below)
                 "Residential" -> "apartment"
                 "Commercial" -> "office"
                 "Hotel / Resort" -> "hotel"
@@ -355,32 +353,10 @@ class PostAdViewModel @Inject constructor(
                 "Agricultural Land" -> "land"
                 "Farmhouse" -> "farmhouse"
 
-                // Construction (Contractor)
-                "Civil Contractors" -> "civil_contractor"
-                "Builders" -> "builder"
-                "Architects" -> "architect"
-                "Structural Engineers" -> "structural_engineer"
-                "Interior Designers" -> "interior_designer"
-                "Plumbing" -> "plumbing_contractor"
-                "Electrical" -> "electrical_contractor"
-                // "Painting" is used by both the Construction and Maintenance sub-category
-                // lists with the identical label, so disambiguate via the selected category.
-                "Painting" -> if (isConstruction) "painting_contractor" else "painting_service"
-                "False Ceiling" -> "false_ceiling"
-                "Tiles" -> "tiles_contractor"
-                "Roofing" -> "roofing"
-                "Landscaping" -> "landscaping"
-
-                // Maintenance (Contractor)
-                "Electrician" -> "electrician"
-                "Plumber" -> "plumber"
-                "Carpenter" -> "carpenter"
-                "AC Service" -> "ac_service"
-                "CCTV" -> "cctv_service"
-                "Cleaning" -> "cleaning_service"
-                "Pest Control" -> "pest_control"
-                "Borewell" -> "borewell"
-                "Water Tank Cleaning" -> "water_tank_cleaning"
+                // Construction / Maintenance — shared with PropertyListScreen's sub-category
+                // filter chips via subCategoryToPropertyType() so the two can't drift apart.
+                in constructionSubCategories, in maintenanceSubCategories ->
+                    subCategoryToPropertyType(rawPropertyType, isConstruction)
 
                 else -> rawPropertyType.lowercase().replace(" ", "_").replace("/", "_").ifBlank { "apartment" }
             }

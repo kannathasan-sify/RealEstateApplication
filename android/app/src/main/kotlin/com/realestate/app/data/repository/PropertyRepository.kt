@@ -7,6 +7,8 @@ import com.realestate.app.data.api.AdminStats
 import com.realestate.app.data.api.ApiService
 import com.realestate.app.data.api.ApprovalUpdateRequest
 import com.realestate.app.data.api.ApprovalUpdateResponse
+import com.realestate.app.data.api.CreateBuilderRequest
+import com.realestate.app.data.api.CreateBuilderResponse
 import com.realestate.app.data.api.SubscriptionDetails
 import com.realestate.app.data.api.SubscriptionUpgradeRequest
 import com.realestate.app.data.api.SupportTicket
@@ -282,6 +284,10 @@ class PropertyRepository @Inject constructor(
     suspend fun deleteUser(userId: String): Result<Unit> = runCatching {
         api.deleteUser(userId)
         Unit
+    }
+
+    suspend fun createBuilder(email: String, password: String, fullName: String, phone: String? = null): Result<CreateBuilderResponse> = runCatching {
+        api.createBuilder(CreateBuilderRequest(email, password, fullName, phone))
     }
 
     suspend fun listPayments(): Result<List<AdminPayment>> = runCatching {

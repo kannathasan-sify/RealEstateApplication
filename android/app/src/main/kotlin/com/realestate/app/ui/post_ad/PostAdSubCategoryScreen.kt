@@ -82,6 +82,44 @@ val groundSubCategories = listOf(
     "Other Closed Ground",
 )
 
+/**
+ * Maps a Construction/Maintenance sub-category label (as shown in [constructionSubCategories] /
+ * [maintenanceSubCategories]) to the backend `PropertyType` enum value
+ * (`backend/app/schemas/property.py`).
+ *
+ * Shared between the Post-Ad flow (`PostAdViewModel.submitAd()`) and the property list's
+ * sub-category filter chips (`PropertyListScreen`'s `SubCategoryTabBar`) so the two can never
+ * drift out of sync again — that exact drift is what caused property_type validation errors
+ * on submit, and would otherwise cause the list filter to silently match nothing.
+ *
+ * "Painting" appears with the identical label in both sub-category lists, so [isConstruction]
+ * disambiguates it to `painting_contractor` vs `painting_service`.
+ */
+fun subCategoryToPropertyType(label: String, isConstruction: Boolean): String = when (label.trim()) {
+    "Civil Contractors" -> "civil_contractor"
+    "Builders" -> "builder"
+    "Architects" -> "architect"
+    "Structural Engineers" -> "structural_engineer"
+    "Interior Designers" -> "interior_designer"
+    "Plumbing" -> "plumbing_contractor"
+    "Electrical" -> "electrical_contractor"
+    "Painting" -> if (isConstruction) "painting_contractor" else "painting_service"
+    "False Ceiling" -> "false_ceiling"
+    "Tiles" -> "tiles_contractor"
+    "Roofing" -> "roofing"
+    "Landscaping" -> "landscaping"
+    "Electrician" -> "electrician"
+    "Plumber" -> "plumber"
+    "Carpenter" -> "carpenter"
+    "AC Service" -> "ac_service"
+    "CCTV" -> "cctv_service"
+    "Cleaning" -> "cleaning_service"
+    "Pest Control" -> "pest_control"
+    "Borewell" -> "borewell"
+    "Water Tank Cleaning" -> "water_tank_cleaning"
+    else -> label.trim().lowercase().replace(" ", "_").replace("/", "_")
+}
+
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)

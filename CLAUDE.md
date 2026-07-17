@@ -1,6 +1,6 @@
 # Real Estate App — CLAUDE.md (Full Development Guide)
 # Brand: NestX  |  Original UI Reference: Dubizzle Android App
-# Last Updated: 2026-07-15 (added Admin Dashboard "Enquiries" tab + property_leads docs — see "Doc Drift Notes" at bottom)
+# Last Updated: 2026-07-15 (added Admin Dashboard "Builders" + "Agencies" tabs — POST /admin/builders + property_leads/Enquiries docs — see "Doc Drift Notes" at bottom)
 
 ---
 
@@ -160,7 +160,8 @@ Real_Estate_App/
     │   ├── 016_ad_interests.sql
     │   ├── 017_ad_analytics.sql
     │   ├── 018_property_leads.sql          ← property_leads table ("I'm Interested" on a listing)
-    │   └── 019_property_leads_rejected_status.sql  ← adds 'rejected' to property_leads.status
+    │   ├── 019_property_leads_rejected_status.sql  ← adds 'rejected' to property_leads.status
+    │   └── 020_reconcile_property_listing_types.sql ← properties.listing_type/property_type CHECK constraints now mirror the Pydantic ListingType/PropertyType enums exactly (adds 'maintenance' to listing_type; replaces property_type's old vocabulary with the full Pydantic list)
     └── seed.sql
 ```
 
@@ -251,7 +252,7 @@ The backend and DB, however, still carry legacy role values (see Doc Drift Notes
 | 30 | Service Request Feed | ServiceRequestFeedScreen.kt | **NEW** — district/radius/category filters |
 | 31 | Service Request Detail | ServiceRequestDetailScreen.kt | **NEW** — quotations list, accept/reject |
 | 32 | Subscription Plans | SubscriptionPlansScreen.kt | **NEW** — free/silver/gold/platinum/contractor |
-| 33 | Admin Dashboard | AdminDashboardScreen.kt | **NEW** — nested graph, shared `AdminViewModel`: Properties/Users/Payments/Complaints/Stats/**Enquiries** tabs (6 tabs) |
+| 33 | Admin Dashboard | AdminDashboardScreen.kt | **NEW** — nested graph, shared `AdminViewModel`: Properties/Users/Payments/Complaints/Stats/Enquiries/Builders/**Agencies** tabs (8 tabs) |
 | 34 | Admin Property Review | AdminPropertyReviewScreen.kt | **NEW** — approve/reject bottom sheet |
 
 **Bottom nav has shrunk to 2 fixed tabs: Home and Menu.** Saved and Chat were removed from the nav bar (still reachable from Menu). The "+" Place-an-Ad button navigates directly into the nested `post_ad_graph`, not a tab.
@@ -365,8 +366,10 @@ Beyond property approval, `admin.py` now covers a full back-office surface, all 
 - **Support tickets**: list, reply (auto-resolves)
 - **Property Leads / Enquiries** (added 2026-07-15): `GET /admin/leads` — every `property_leads` row across every listing app-wide (not owner/buyer-scoped like the regular leads endpoints), joined with `profiles.role` so the row carries `buyer_role` for a "Name (role)" display; `PATCH /admin/leads/{id}` — edit status/message/buyer_name/buyer_phone/buyer_email (all fields optional, only sent ones change); `DELETE /admin/leads/{id}` — permanently delete a lead. `status` now also accepts `rejected` (added by migration `019_property_leads_rejected_status.sql`, admin-only quick action distinct from delete) alongside the original `pending|contacted|visit_scheduled|converted|closed`.
 - **Stats**: `GET /reports/stats` — total properties/pending/users/agents/builders, total revenue (INR), complaint counts
+- **Builders** (added 2026-07-15): `POST /admin/builders` — admin manually creates a new builder account in one call (Supabase Auth user via `admin_client.auth.admin.create_user()` + a `profiles` row inserted directly with `role="builder"`, bypassing `get_or_create_profile()`'s hardcoded `role="buyer"` default since the admin is explicitly assigning the role). Body: `email`, `password` (min 6 chars), `full_name`, `phone` (optional). Generates a `user_id_code` via `generate_user_id_code()` the same way `/auth/register` does. Rolls back the just-created Auth user (`auth.admin.delete_user()`) if the profile insert fails, so a failed call never leaves an orphaned Auth-only account. Listing/verifying/editing-role/deleting builders reuses the existing `GET /admin/users?role=builder`, `PATCH /admin/users/{id}/verify`, `PATCH /admin/users/{id}/role`, `DELETE /admin/users/{id}` endpoints — no separate list/verify/delete endpoints were needed.
+- **Agencies** (added 2026-07-15): read-only counterpart to Builders — no create-account endpoint (agencies self-register via the normal role-selection flow, unlike admin-provisioned builders). Listing/verifying/editing-role/deleting agencies reuses the same `GET /admin/users?role=agency`, `PATCH /admin/users/{id}/verify`, `PATCH /admin/users/{id}/role`, `DELETE /admin/users/{id}` endpoints.
 
-Android: `AdminDashboardScreen.kt` (6 tabs: Properties/Users/Payments/Complaints/Stats/**Enquiries**) + `AdminPropertyReviewScreen.kt` + shared `AdminViewModel.kt`. The Enquiries tab (`EnquiriesTabContent`) lists every lead with an Edit (status/message/buyer contact info dialog), Reject (quick status→`rejected`), and Delete action per row — distinct from the buyer/owner-scoped "Enquiries" screen under Menu (`ui/leads/LeadsScreen.kt`), which only shows the current user's own sent/received leads.
+Android: `AdminDashboardScreen.kt` (8 tabs: Properties/Users/Payments/Complaints/Stats/Enquiries/Builders/**Agencies**) + `AdminPropertyReviewScreen.kt` + shared `AdminViewModel.kt`. The Enquiries tab (`EnquiriesTabContent`) lists every lead with an Edit (status/message/buyer contact info dialog), Reject (quick status→`rejected`), and Delete action per row — distinct from the buyer/owner-scoped "Enquiries" screen under Menu (`ui/leads/LeadsScreen.kt`), which only shows the current user's own sent/received leads. The Builders tab (`BuildersTabContent`) lists all `role=builder` profiles with join date (`User.joinedLabel`), Verify/Unverify, change-role, and delete actions (reusing the same dialogs as the Users tab), plus an "Add Builder" button that opens a create-account dialog wired to `AdminViewModel.createBuilderState` (a `CreateBuilderState` sealed class: `Idle`/`Loading`/`Success`/`Error`) — the dialog shows a spinner while the request is in flight, then a success snackbar, then auto-clears and auto-hides itself (`resetCreateBuilderState()`). The Agencies tab (`AgenciesTabContent`) mirrors the Builders tab's list/verify/role/delete UI for `role=agency` profiles, but has no "Add Agency" button — it's a read-only listing sourced straight from the `profiles` table, since agency accounts are created via self-registration, not by an admin.
 
 ### 13. Support Tickets
 Simple complaint system, separate from Admin:
@@ -406,7 +409,7 @@ Android: `enum class Amenity` with display string resource. Backend: validate ag
 
 ## Property Sub-Categories & Listing Types (expanded)
 
-`listing_type` now spans, per migrations 013/014: `rent | sale | off_plan | holiday_stay | contractor | ground` (Pydantic schema goes further still — includes a `maintenance` listing_type — see Doc Drift Notes).
+`listing_type` now spans, per migration 020: `rent | sale | off_plan | holiday_stay | contractor | ground | maintenance` — matches the Pydantic `ListingType` enum exactly as of 2026-07-15 (see Doc Drift Notes item 3, resolved).
 
 For **Residential** (Rent or Sale): Apartment, Villa, Townhouse, Penthouse, Hotel Apartment, Residential Building, Villa Compound, Residential Floor.
 
@@ -414,7 +417,9 @@ For **Commercial**: Office, Shop, Warehouse, Labour Camp, Commercial Building, C
 
 For **Ground/Sports** (new, migration 014): Cricket Ground, Football, Other Open Ground, Badminton, Swimming Pool, Other Closed Ground.
 
-For **Contractor/Maintenance** (new): work_category `construction | maintenance`, plus property_type values like Building, Villa House, Interior Fitout, Civil Work, Painting Work, Air Conditioning, Plumbing, Household Equipment (and many more in `schemas/property.py` — e.g. `civil_contractor`, `electrician`, `ac_service`, `pest_control`).
+For **Contractor** (`listing_type = contractor`, `work_category = construction`): `civil_contractor, builder, architect, structural_engineer, interior_designer, plumbing_contractor, electrical_contractor, painting_contractor, false_ceiling, tiles_contractor, roofing, landscaping`.
+
+For **Maintenance** (`listing_type = maintenance`, `work_category = maintenance` — as of migration 020 `maintenance` is its own `listing_type`, not folded into `contractor`): `electrician, plumber, carpenter, ac_service, cctv_service, cleaning_service, painting_service, pest_control, borewell, water_tank_cleaning`. (Full canonical list: `backend/app/schemas/property.py`'s `PropertyType` enum — this is what both Pydantic validation and the DB `properties_property_type_check` constraint enforce as of migration 020.)
 
 Per-listing-type extra fields live in `properties.metadata JSONB` (migration 015): grounds get `ground_type/length_m/width_m/surface/floodlights/capacity/facilities`; contractors get `work_category/work_types/experience_yrs/team_size/pricing_model/license_no/warranty`; holiday stays get `stay_type/max_guests/check_in/check_out/min_nights/facilities/house_rules/cancellation`.
 
@@ -828,6 +833,7 @@ All prefixed `/api/v1` unless noted.
 | PATCH | /users/{id}/verify | Toggle verified |
 | PATCH | /users/{id}/role | Change role |
 | DELETE | /users/{id} | Delete user |
+| POST | /builders | Admin creates a new builder account (Auth user + profiles row, role=builder) |
 | GET | /payments | Payment ledger |
 | GET | /tickets?status= | List support tickets |
 | POST | /tickets/{id}/reply | Reply + resolve |
@@ -1177,12 +1183,14 @@ These are real inconsistencies found across the codebase, not stylistic choices 
    - Android `UserRole` enum: `BUYER, AGENT, BUILDER, ADMIN` (clean v2 model)
    - Backend `schemas/auth.py` `VALID_ROLES`: `buyer, landlord, agent, agency, developer, admin` (no `builder`, keeps legacy values)
    - DB `profiles_role_check` (migration 008): `buyer, agent, builder, admin, landlord, agency, developer` (superset of both)
-   Pick one canonical set and migrate the other two layers to match.
+   Pick one canonical set and migrate the other two layers to match. Note: `POST /admin/builders` (2026-07-15) and `PATCH /admin/users/{id}/role` both write `role` directly to the `profiles` table without going through `schemas/auth.py`'s `VALID_ROLES` (that validator only applies to self-service registration/role-selection, not admin-driven writes), so `builder` works end-to-end today purely because the DB CHECK constraint already allows it — this is a workaround, not a fix for the underlying three-layer drift.
 
 2. **`listed_by` has ballooned to 8 values**: `landlord, agent, agency, developer, builder, individual, company, owner` (final state after migration 013) — far beyond the `landlord|agent|agency|developer` in earlier docs. Decide the real intended set.
 
-3. **`property_type`/`listing_type` in `schemas/property.py` (Pydantic) go further than the SQL `CHECK` constraints on disk** — e.g. a `maintenance` listing_type and many contractor/maintenance property_type values (`civil_contractor`, `electrician`, `ac_service`, `pest_control`, etc.) exist in Python validation but may not be reflected in the DB constraint (`supabase/migrations/013_add_new_listing_types.sql` still has its own, different vocabulary — `building`, `villa_house`, `civil_work`, `painting_work`, `air_conditioning`, `household_equipment`, `plumbing`, etc. — none of which are in the Pydantic enum). Audit and sync the DB constraint eventually.
-   - ⚠ **This bit Android in production (fixed 2026-07-15):** `PostAdViewModel.kt`'s `submitAd()` had a hardcoded label→`property_type` map written against the *DB constraint's* old vocabulary (`civil_work`, `building`, `villa_house`, `interior_fitout`, `painting_work`, `air_conditioning`, `household_equipment`) instead of the Pydantic enum FastAPI actually validates against — every Construction/Maintenance/Farmhouse submission 400'd with `Validation Error: property_type: Input should be 'apartment', 'villa', ...`. Since Pydantic validation runs before the DB is ever touched, the DB constraint's vocabulary was effectively dead code from the client's perspective. Fixed by remapping each sub-category label to its correct Pydantic `PropertyType` member (e.g. `"Civil Contractors" -> "civil_contractor"`, `"Farmhouse" -> "farmhouse"`, `"AC Service" -> "ac_service"`). The DB `CHECK` constraint itself is still stale and should be reconciled to the Pydantic vocabulary (or dropped in favor of enforcing only at the API layer) so this class of bug can't recur from either direction.
+3. ~~`property_type`/`listing_type` in `schemas/property.py` (Pydantic) go further than the SQL `CHECK` constraints on disk`~~ — **RESOLVED by migration `020_reconcile_property_listing_types.sql` (2026-07-15).** This was a two-part bug that shipped in sequence:
+   - **Part A (Android → Pydantic):** `PostAdViewModel.kt`'s `submitAd()` had a hardcoded label→`property_type` map written against the *old DB constraint's* vocabulary (`civil_work`, `building`, `villa_house`, `interior_fitout`, `painting_work`, `air_conditioning`, `household_equipment`) instead of the Pydantic `PropertyType` enum FastAPI actually validates against first — every Construction/Maintenance/Farmhouse submission 400'd with `Validation Error: property_type: Input should be 'apartment', 'villa', ...`. Fixed by remapping each sub-category label to its correct Pydantic `PropertyType` member (e.g. `"Civil Contractors" -> "civil_contractor"`, `"Farmhouse" -> "farmhouse"`, `"AC Service" -> "ac_service"`).
+   - **Part B (Pydantic → DB):** once Part A's fix got requests past FastAPI validation, inserts then failed at the database with `psycopg.errors.CheckViolation: new row for relation "properties" violates check constraint "properties_listing_type_check"` (for Maintenance listings, since `listing_type='maintenance'` was valid in Pydantic's `ListingType` enum but never added to the DB `CHECK`) — and would have next failed `properties_property_type_check` too, since none of the newer Pydantic `PropertyType` values (`civil_contractor`, `electrician`, `ac_service`, etc.) were in the DB constraint's vocabulary either (`supabase/migrations/013_add_new_listing_types.sql` / `014_add_ground_listing_type.sql` still had the old `building`/`villa_house`/`civil_work`/etc. list). Fixed by migration `020`, which drops and recreates both `properties_listing_type_check` (adds `'maintenance'`) and `properties_property_type_check` (replaced wholesale with the exact Pydantic `PropertyType` list) so the DB is now a mirror of the Pydantic enums, not a stale parallel vocabulary.
+   - Going forward: `schemas/property.py`'s `ListingType`/`PropertyType` enums are the canonical source of truth — if either grows, migration must follow to keep the DB `CHECK` constraints in sync (there is no automatic sync between the two layers).
 
 4. **`property_discussions` table has no committed migration file** — the router has a fallback in-memory cache specifically because the table may not exist. Add a real migration (draft provided above) before shipping this feature to a new environment.
 

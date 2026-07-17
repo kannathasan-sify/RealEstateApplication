@@ -44,7 +44,7 @@ fun AdminDashboardScreen(
     onBack: () -> Unit,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Properties", "Users", "Payments", "Complaints", "System Stats", "Enquiries")
+    val tabs = listOf("Properties", "Users", "Payments", "Complaints", "System Stats", "Enquiries", "Builders", "Agencies")
 
     val allProperties by viewModel.properties.collectAsState()
     val pending       by viewModel.pending.collectAsState()
@@ -58,6 +58,9 @@ fun AdminDashboardScreen(
     val ticketsList   by viewModel.tickets.collectAsState()
     val systemStats   by viewModel.stats.collectAsState()
     val leadsList     by viewModel.leads.collectAsState()
+    val buildersList  by viewModel.builders.collectAsState()
+    val agenciesList  by viewModel.agencies.collectAsState()
+    val createBuilderState by viewModel.createBuilderState.collectAsState()
 
     // Trigger load of everything on launch
     LaunchedEffect(Unit) {
@@ -102,6 +105,31 @@ fun AdminDashboardScreen(
     var editPhoneDraft    by remember { mutableStateOf("") }
     var editEmailDraft    by remember { mutableStateOf("") }
     var deleteLeadId      by remember { mutableStateOf<String?>(null) }
+
+    // Add Builder dialog
+    var showAddBuilderDialog by remember { mutableStateOf(false) }
+    var newBuilderEmail    by remember { mutableStateOf("") }
+    var newBuilderPassword by remember { mutableStateOf("") }
+    var newBuilderName     by remember { mutableStateOf("") }
+    var newBuilderPhone    by remember { mutableStateOf("") }
+
+    // Drives the loading → success → auto-hide sequence for Add Builder
+    LaunchedEffect(createBuilderState) {
+        when (val state = createBuilderState) {
+            is CreateBuilderState.Success -> {
+                snackbarHostState.showSnackbar("${state.builderName} added as a builder")
+                showAddBuilderDialog = false
+                newBuilderEmail = ""; newBuilderPassword = ""; newBuilderName = ""; newBuilderPhone = ""
+                kotlinx.coroutines.delay(200)
+                viewModel.resetCreateBuilderState()
+            }
+            is CreateBuilderState.Error -> {
+                snackbarHostState.showSnackbar(state.message)
+                viewModel.resetCreateBuilderState()
+            }
+            else -> Unit
+        }
+    }
 
     // Render verification dialogs
     if (confirmAction != null) {
@@ -416,6 +444,79 @@ fun AdminDashboardScreen(
         )
     }
 
+    // Add Builder dialog
+    if (showAddBuilderDialog) {
+        val isSubmitting = createBuilderState is CreateBuilderState.Loading
+        AlertDialog(
+            onDismissRequest = { if (!isSubmitting) showAddBuilderDialog = false },
+            title = { Text("Add Builder Account", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isSubmitting) {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = NestXBlue)
+                                Spacer(Modifier.height(8.dp))
+                                Text("Creating builder account…", fontSize = 12.sp, color = TextSecondary)
+                            }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = newBuilderName,
+                            onValueChange = { newBuilderName = it },
+                            label = { Text("Full Name") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = newBuilderEmail,
+                            onValueChange = { newBuilderEmail = it },
+                            label = { Text("Email") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = newBuilderPassword,
+                            onValueChange = { newBuilderPassword = it },
+                            label = { Text("Temporary Password") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = newBuilderPhone,
+                            onValueChange = { newBuilderPhone = it },
+                            label = { Text("Phone (optional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.createBuilder(
+                            email = newBuilderEmail.trim(),
+                            password = newBuilderPassword,
+                            fullName = newBuilderName.trim(),
+                            phone = newBuilderPhone.trim().ifBlank { null },
+                        )
+                    },
+                    enabled = !isSubmitting && newBuilderName.isNotBlank() && newBuilderEmail.isNotBlank() && newBuilderPassword.length >= 6,
+                    colors = ButtonDefaults.buttonColors(containerColor = NestXBlue)
+                ) {
+                    Text("Create Builder", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddBuilderDialog = false }, enabled = !isSubmitting) { Text("Cancel") }
+            }
+        )
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -509,6 +610,19 @@ fun AdminDashboardScreen(
                             },
                             onReject = { id -> viewModel.rejectLead(id) },
                             onDelete = { id -> deleteLeadId = id }
+                        )
+                        6 -> BuildersTabContent(
+                            builders = buildersList,
+                            onAddBuilder = { showAddBuilderDialog = true },
+                            onVerifyToggle = { id, verified -> viewModel.verifyUser(id, verified) },
+                            onChangeRole = { id, currentRole -> changeRoleUserId = id; newRoleSelection = currentRole },
+                            onDelete = { id -> deleteUserId = id }
+                        )
+                        7 -> AgenciesTabContent(
+                            agencies = agenciesList,
+                            onVerifyToggle = { id, verified -> viewModel.verifyUser(id, verified) },
+                            onChangeRole = { id, currentRole -> changeRoleUserId = id; newRoleSelection = currentRole },
+                            onDelete = { id -> deleteUserId = id }
                         )
                     }
                 }
@@ -937,6 +1051,184 @@ private fun EnquiriesTabContent(
                                 Icon(Icons.Default.Delete, null, tint = PrimaryRed, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text("Delete", color = PrimaryRed, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── BUILDERS PANEL ───────────────────────────────────────────────────────────
+
+@Composable
+private fun BuildersTabContent(
+    builders: List<User>,
+    onAddBuilder: () -> Unit,
+    onVerifyToggle: (String, Boolean) -> Unit,
+    onChangeRole: (String, String) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("${builders.size} builder(s)", fontSize = 13.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+            Button(
+                onClick = onAddBuilder,
+                colors = ButtonDefaults.buttonColors(containerColor = NestXBlue),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Add Builder", color = Color.White, fontSize = 12.sp)
+            }
+        }
+
+        if (builders.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No builder accounts yet", color = TextSecondary)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(builders, key = { it.id }) { builder ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(builder.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    if (builder.isVerified) {
+                                        Spacer(Modifier.width(4.dp))
+                                        Icon(Icons.Default.Verified, "Verified", tint = StatusApproved, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                Text("Email: ${builder.email}", fontSize = 12.sp, color = TextSecondary)
+                                if (builder.phone.isNotBlank()) {
+                                    Text("Phone: ${builder.phone}", fontSize = 12.sp, color = TextSecondary)
+                                }
+                                Text(builder.joinedLabel, fontSize = 11.sp, color = NestXBlue, fontWeight = FontWeight.Medium)
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Button(
+                                    onClick = { onVerifyToggle(builder.id, !builder.isVerified) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (builder.isVerified) StatusPending else StatusApproved
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    Text(if (builder.isVerified) "Unverify" else "Verify", color = Color.White, fontSize = 10.sp)
+                                }
+
+                                IconButton(onClick = { onChangeRole(builder.id, builder.roleStr) }) {
+                                    Icon(Icons.Default.ManageAccounts, "Role", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                                }
+
+                                IconButton(onClick = { onDelete(builder.id) }) {
+                                    Icon(Icons.Default.Delete, "Delete", tint = PrimaryRed, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── AGENCIES PANEL ───────────────────────────────────────────────────────────
+
+@Composable
+private fun AgenciesTabContent(
+    agencies: List<User>,
+    onVerifyToggle: (String, Boolean) -> Unit,
+    onChangeRole: (String, String) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Text("${agencies.size} agency account(s)", fontSize = 13.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+        }
+
+        if (agencies.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No agency accounts yet", color = TextSecondary)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(agencies, key = { it.id }) { agency ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(agency.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    if (agency.isVerified) {
+                                        Spacer(Modifier.width(4.dp))
+                                        Icon(Icons.Default.Verified, "Verified", tint = StatusApproved, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                Text("Email: ${agency.email}", fontSize = 12.sp, color = TextSecondary)
+                                if (agency.phone.isNotBlank()) {
+                                    Text("Phone: ${agency.phone}", fontSize = 12.sp, color = TextSecondary)
+                                }
+                                Text(agency.joinedLabel, fontSize = 11.sp, color = NestXBlue, fontWeight = FontWeight.Medium)
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Button(
+                                    onClick = { onVerifyToggle(agency.id, !agency.isVerified) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (agency.isVerified) StatusPending else StatusApproved
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    Text(if (agency.isVerified) "Unverify" else "Verify", color = Color.White, fontSize = 10.sp)
+                                }
+
+                                IconButton(onClick = { onChangeRole(agency.id, agency.roleStr) }) {
+                                    Icon(Icons.Default.ManageAccounts, "Role", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                                }
+
+                                IconButton(onClick = { onDelete(agency.id) }) {
+                                    Icon(Icons.Default.Delete, "Delete", tint = PrimaryRed, modifier = Modifier.size(20.dp))
+                                }
                             }
                         }
                     }

@@ -16,6 +16,7 @@ from app.services.supabase_client import get_supabase_admin
 from app.middleware.auth_middleware import get_current_user
 from app.routers.properties import PROPERTY_FIELDS
 from app.routers.property_leads import PropertyLeadResponse
+from app.services.auth_service import generate_user_id_code
 
 router = APIRouter()
 
@@ -266,15 +267,97 @@ async def delete_user(
 ):
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
-        
+
     admin_client = get_supabase_admin()
     try:
         admin_client.auth.admin.delete_user(user_id)
     except Exception:
         pass
-    
+
     result = admin_client.table("profiles").delete().eq("id", user_id).execute()
     return {"status": "success", "message": "User deleted successfully"}
+
+
+# ── Builder Management ─────────────────────────────────────────────────────────
+
+class CreateBuilderRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    phone: Optional[str] = None
+
+
+@router.post("/builders")
+async def create_builder(
+    body: CreateBuilderRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Admin-created builder account. Creates the Supabase Auth user + a
+    profiles row with role='builder' directly (bypasses get_or_create_profile's
+    hardcoded role='buyer' default, since the admin is explicitly setting the role)."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    admin_client = get_supabase_admin()
+    user_id = None
+    try:
+        result = admin_client.auth.admin.create_user({
+            "email": body.email,
+            "password": body.password,
+            "email_confirm": True,
+            "user_metadata": {"full_name": body.full_name},
+        })
+        if result.user:
+            user_id = result.user.id
+    except Exception as e:
+        err = str(e).lower()
+        if "already been registered" in err or "already exists" in err or "duplicate" in err:
+            raise HTTPException(status_code=400, detail="An account with this email already exists.")
+        raise HTTPException(status_code=500, detail=f"Failed to create auth account: {e}")
+
+    if not user_id:
+        raise HTTPException(status_code=500, detail="Failed to create auth account")
+
+    code = generate_user_id_code()
+    for _ in range(5):
+        try:
+            existing = admin_client.table("profiles").select("id").eq("user_id_code", code).maybe_single().execute()
+            if not existing or not existing.data:
+                break
+        except Exception:
+            break
+        code = generate_user_id_code()
+
+    profile_row = {
+        "id": user_id,
+        "full_name": body.full_name,
+        "phone": body.phone,
+        "role": "builder",
+        "user_id_code": code,
+        "is_verified": False,
+    }
+
+    try:
+        result = admin_client.table("profiles").insert(profile_row).execute()
+    except Exception as e:
+        try:
+            admin_client.auth.admin.delete_user(user_id)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Failed to create builder profile: {e}")
+
+    if not result.data:
+        try:
+            admin_client.auth.admin.delete_user(user_id)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="Failed to create builder profile")
+
+    profile = result.data[0]
+    profile["email"] = body.email
+    return {"status": "success", "user": profile}
 
 
 # ── Payment Management ────────────────────────────────────────────────────────

@@ -121,33 +121,12 @@ private fun PropertyDetailContent(
         ?.trimStart('0')
         ?.let { if (it.startsWith("91")) it else "91$it" }
 
-    // ── Phase 0: pre-filled WhatsApp enquiry ──────────────────────────────────
-    // One tap opens WhatsApp to the owner/agent with the full property details already
-    // typed, so the buyer just hits Send. Free, no WhatsApp Business API required.
-    val encodedEnquiry = Uri.encode(buildEnquiryMessage(property, buyerName))
+    // The sticky bottom contact bar (Call / WhatsApp / Visit) is intentionally removed —
+    // those actions are already shown in the contact card within the content below, so the
+    // bar would be redundant. Contact numbers (callNumber/waNumber) are still resolved above
+    // for that in-content card.
 
-    Scaffold(
-        bottomBar = {
-            PropertyContactBar(
-                hasCall     = callNumber != null,
-                hasWhatsApp = waNumber  != null,
-                onCall      = {
-                    callNumber?.let {
-                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$it")))
-                    }
-                },
-                onWhatsApp  = {
-                    waNumber?.let {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$it?text=$encodedEnquiry"))
-                        )
-                    }
-                },
-                onBookVisit = onBookVisit,
-                listingType = property.listingType,
-            )
-        }
-    ) { padding ->
+    Scaffold { padding ->
         LazyColumn(modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
 
             // ── Image Carousel (swipeable) ───────────────────────────────────

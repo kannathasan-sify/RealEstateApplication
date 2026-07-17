@@ -32,6 +32,7 @@ import com.realestate.app.ui.components.PropertyCard
 import com.realestate.app.ui.theme.*
 import com.realestate.app.ui.post_ad.constructionSubCategories
 import com.realestate.app.ui.post_ad.maintenanceSubCategories
+import com.realestate.app.ui.post_ad.subCategoryToPropertyType
 
 /**
  * Shows a list of properties for a given [district] + [listingType].
@@ -211,7 +212,12 @@ fun PropertyListScreen(
                         onSelectTab = { selectedCategoryTab = it }
                     )
                 } else if (listingType == "contractor") {
-                    val subCats = if (workCategory == "construction") {
+                    // Reflect the LIVE filter's workCategory, not just the nav argument — the
+                    // user can switch Construction↔Maintenance in the filter, and the sub-category
+                    // chips (Civil Contractors… vs Electrician…) must follow that choice.
+                    val effectiveWorkCategory = currentFilter.workCategory ?: workCategory
+                    val isConstruction = effectiveWorkCategory == "construction"
+                    val subCats = if (isConstruction) {
                         listOf("All") + constructionSubCategories
                     } else {
                         listOf("All") + maintenanceSubCategories
@@ -219,7 +225,26 @@ fun PropertyListScreen(
                     SubCategoryTabBar(
                         selectedSubCat = selectedSubCategoryTab,
                         subCats = subCats,
-                        onSelectSubCat = { selectedSubCategoryTab = it }
+                        onSelectSubCat = { cat ->
+                            selectedSubCategoryTab = cat
+                            // Re-fetch from the backend filtered by property_type — this used to
+                            // only filter client-side against metadata.sub_category, a key that's
+                            // never actually populated, so every sub-category tap (e.g.
+                            // "Electrician") silently returned zero results.
+                            val mappedPropertyType = if (cat.isBlank() || cat == "All") null
+                                else subCategoryToPropertyType(cat, isConstruction)
+                            viewModel.loadProperties(
+                                district = district,
+                                listingType = listingType ?: "all",
+                                workCategory = effectiveWorkCategory,
+                                filter = currentFilter.copy(
+                                    district = if (district == "All TN") "" else district,
+                                    listingType = listingType ?: "all",
+                                    workCategory = effectiveWorkCategory,
+                                    propertyType = mappedPropertyType,
+                                ),
+                            )
+                        }
                     )
                 } else {
                     DistrictTabBar(
@@ -267,13 +292,9 @@ fun PropertyListScreen(
                                     }
                                 }
                             }
-                            // Contractor: filter by sub-category chip
-                            if (listingType == "contractor" && selectedSubCategoryTab.isNotBlank() && selectedSubCategoryTab != "All") {
-                                list = list.filter { prop ->
-                                    val metaSubCat = prop.metadata?.get("sub_category")?.toString() ?: ""
-                                    metaSubCat.equals(selectedSubCategoryTab, ignoreCase = true)
-                                }
-                            }
+                            // Contractor sub-category (e.g. "Electrician") is now filtered
+                            // server-side via property_type — see SubCategoryTabBar's
+                            // onSelectSubCat above — so no client-side re-filtering here.
                             list
                         }
 

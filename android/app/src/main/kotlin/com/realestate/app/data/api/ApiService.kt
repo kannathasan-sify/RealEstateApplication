@@ -319,6 +319,10 @@ interface ApiService {
     @DELETE("admin/users/{userId}")
     suspend fun deleteUser(@Path("userId") userId: String): Map<String, String>
 
+    /** Admin: create a new builder account (Auth user + profiles row, role=builder). */
+    @POST("admin/builders")
+    suspend fun createBuilder(@Body body: CreateBuilderRequest): CreateBuilderResponse
+
     @GET("admin/payments")
     suspend fun listPayments(): List<AdminPayment>
 
@@ -406,6 +410,18 @@ data class UserRoleRequest(
 data class UserProfilePreview(
     @SerializedName("full_name") val fullName: String?,
     val email: String?
+)
+
+data class CreateBuilderRequest(
+    val email: String,
+    val password: String,
+    @SerializedName("full_name") val fullName: String,
+    val phone: String? = null,
+)
+
+data class CreateBuilderResponse(
+    val status: String = "",
+    val user: com.realestate.app.data.models.User? = null,
 )
 
 data class AdminPayment(

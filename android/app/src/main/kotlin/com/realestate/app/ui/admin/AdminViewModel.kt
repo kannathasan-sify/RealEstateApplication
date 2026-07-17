@@ -10,12 +10,21 @@ import com.realestate.app.data.models.PropertyLead
 import com.realestate.app.data.api.AdminPayment
 import com.realestate.app.data.api.SupportTicket
 import com.realestate.app.data.api.AdminStats
+import com.realestate.app.data.api.CreateBuilderResponse
 import com.realestate.app.data.mock.MockData
 import com.realestate.app.data.repository.PropertyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/** UX states for the "Add Builder" flow — drives the loading spinner → success → auto-hide sequence. */
+sealed class CreateBuilderState {
+    object Idle : CreateBuilderState()
+    object Loading : CreateBuilderState()
+    data class Success(val builderName: String) : CreateBuilderState()
+    data class Error(val message: String) : CreateBuilderState()
+}
 
 @HiltViewModel
 class AdminViewModel @Inject constructor(
@@ -28,6 +37,11 @@ class AdminViewModel @Inject constructor(
     val tickets = MutableStateFlow<List<SupportTicket>>(emptyList())
     val stats = MutableStateFlow<AdminStats?>(null)
     val leads = MutableStateFlow<List<PropertyLead>>(emptyList())
+    val builders = MutableStateFlow<List<User>>(emptyList())
+    val agencies = MutableStateFlow<List<User>>(emptyList())
+
+    private val _createBuilderState = MutableStateFlow<CreateBuilderState>(CreateBuilderState.Idle)
+    val createBuilderState: StateFlow<CreateBuilderState> = _createBuilderState
 
     // ── Loading / error state ─────────────────────────────────────────────────
     private val _isLoading = MutableStateFlow(false)
@@ -74,6 +88,8 @@ class AdminViewModel @Inject constructor(
         loadTickets()
         loadStats()
         loadLeads()
+        loadBuilders()
+        loadAgencies()
     }
 
     fun loadAllProperties() {
@@ -193,11 +209,15 @@ class AdminViewModel @Inject constructor(
                 MockData.adminUsers[idx] = MockData.adminUsers[idx].copy(isVerified = isVerified)
             }
             loadUsers()
+            loadBuilders()
+            loadAgencies()
             return
         }
         viewModelScope.launch {
             propertyRepo.verifyUser(userId, isVerified).onSuccess {
                 loadUsers()
+                loadBuilders()
+                loadAgencies()
             }.onFailure {
                 _errorMessage.value = it.message ?: "Verify user failed"
             }
@@ -212,11 +232,15 @@ class AdminViewModel @Inject constructor(
             }
             loadUsers()
             loadStats()
+            loadBuilders()
+            loadAgencies()
             return
         }
         viewModelScope.launch {
             propertyRepo.changeUserRole(userId, role).onSuccess {
                 loadUsers()
+                loadBuilders()
+                loadAgencies()
             }.onFailure {
                 _errorMessage.value = it.message ?: "Change role failed"
             }
@@ -228,13 +252,91 @@ class AdminViewModel @Inject constructor(
             MockData.adminUsers.removeAll { it.id == userId }
             loadUsers()
             loadStats()
+            loadBuilders()
+            loadAgencies()
             return
         }
         viewModelScope.launch {
             propertyRepo.deleteUser(userId).onSuccess {
                 loadUsers()
+                loadStats()
+                loadBuilders()
+                loadAgencies()
             }.onFailure {
                 _errorMessage.value = it.message ?: "Delete user failed"
+            }
+        }
+    }
+
+    // ── Builders — Admin Extensions ───────────────────────────────────────────
+
+    /** Users with role=builder, for the Admin Dashboard Builders tab. */
+    fun loadBuilders() {
+        if (BuildConfig.USE_MOCK_DATA) {
+            builders.value = MockData.adminUsers.filter { it.roleStr == "builder" }
+            return
+        }
+        viewModelScope.launch {
+            propertyRepo.listUsers(role = "builder").onSuccess {
+                builders.value = it
+            }.onFailure {
+                _errorMessage.value = it.message ?: "Failed to load builders"
+            }
+        }
+    }
+
+    /** Admin manually creates a new builder account. Drives the loading → success → auto-hide UX. */
+    fun createBuilder(email: String, password: String, fullName: String, phone: String?) {
+        if (BuildConfig.USE_MOCK_DATA) {
+            _createBuilderState.value = CreateBuilderState.Loading
+            viewModelScope.launch {
+                val newBuilder = User(
+                    id = "mock-builder-${System.currentTimeMillis()}",
+                    fullName = fullName,
+                    email = email,
+                    phone = phone ?: "",
+                    roleStr = "builder",
+                    userIdCode = "RE-${(1000..9999).random()}",
+                    isVerified = false,
+                )
+                MockData.adminUsers.add(newBuilder)
+                loadBuilders()
+                loadStats()
+                _createBuilderState.value = CreateBuilderState.Success(fullName)
+            }
+            return
+        }
+        _createBuilderState.value = CreateBuilderState.Loading
+        viewModelScope.launch {
+            propertyRepo.createBuilder(email, password, fullName, phone)
+                .onSuccess { response: CreateBuilderResponse ->
+                    loadBuilders()
+                    loadStats()
+                    _createBuilderState.value = CreateBuilderState.Success(response.user?.fullName ?: fullName)
+                }
+                .onFailure {
+                    _createBuilderState.value = CreateBuilderState.Error(it.message ?: "Failed to create builder")
+                }
+        }
+    }
+
+    fun resetCreateBuilderState() {
+        _createBuilderState.value = CreateBuilderState.Idle
+    }
+
+    /** Users with role=agency, for the Admin Dashboard Agencies tab. Read-only list from
+     * the profiles table (like Builders), reusing the same verify/role/delete actions —
+     * there's no admin-create flow for agencies (they self-register via role selection). */
+    fun loadAgencies() {
+        if (BuildConfig.USE_MOCK_DATA) {
+            agencies.value = MockData.adminUsers.filter { it.roleStr == "agency" }
+            return
+        }
+        viewModelScope.launch {
+            propertyRepo.listUsers(role = "agency").onSuccess {
+                agencies.value = it
+            }.onFailure {
+                _errorMessage.value = it.message ?: "Failed to load agencies"
             }
         }
     }
