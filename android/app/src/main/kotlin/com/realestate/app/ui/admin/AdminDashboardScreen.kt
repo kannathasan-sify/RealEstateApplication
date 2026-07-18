@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -699,79 +700,134 @@ private fun PropertiesTabContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(displayList) { property ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            AsyncImage(
-                                model = property.images.firstOrNull() ?: "",
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(72.dp)
-                                    .background(SurfaceGray, RoundedCornerShape(8.dp))
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                property?.title?.let { Text(it, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                Text("${property.district} • ${property.priceShort}", fontSize = 12.sp, color = TextSecondary)
-                                Text("Owner: ${property.agentName}", fontSize = 11.sp, color = NestXBlue)
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Column(horizontalAlignment = Alignment.End) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    IconButton(
-                                        onClick = { onDeleteSpam(property.id) },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(Icons.Default.Delete, "Delete", tint = PrimaryRed, modifier = Modifier.size(20.dp))
+                    val statusColor = when (property.approvalStatus) {
+                        ApprovalStatus.PENDING -> StatusPending
+                        ApprovalStatus.APPROVED -> StatusApproved
+                        ApprovalStatus.REJECTED -> StatusRejected
+                    }
+                    val statusLabel = when (property.approvalStatus) {
+                        ApprovalStatus.PENDING -> "Pending Review"
+                        ApprovalStatus.APPROVED -> "Approved"
+                        ApprovalStatus.REJECTED -> "Rejected"
+                    }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.Top) {
+                                    AsyncImage(
+                                        model = property.images.firstOrNull() ?: "",
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(72.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(SurfaceGray)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f).padding(end = 30.dp)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = statusColor.copy(alpha = 0.12f),
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                            ) {
+                                                Box(modifier = Modifier.size(6.dp).background(statusColor, CircleShape))
+                                                Spacer(Modifier.width(5.dp))
+                                                Text(statusLabel, color = statusColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                        Spacer(Modifier.height(6.dp))
+                                        property.title?.let {
+                                            Text(it, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "${property.district.orEmpty()} • ${property.priceShort}",
+                                            fontSize = 12.sp, color = TextSecondary,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "Owner: ${property.agentName}",
+                                            fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = NestXBlue,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        )
                                     }
                                 }
 
-                                when (property.approvalStatus) {
-                                    ApprovalStatus.PENDING -> {
-                                        // Admin must open the full listing (photos, description,
-                                        // location, submitter info) before approving or rejecting —
-                                        // no more one-tap approve/reject straight from the list.
-                                        // Rejection reason validation lives in AdminPropertyReviewScreen,
-                                        // where the Confirm Rejection button stays disabled until a
-                                        // non-blank reason is entered.
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                "Approval Expected",
-                                                color = TextSecondary,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Medium,
-                                            )
-                                            Button(
-                                                onClick = { onPropertyClick(property.id) },
-                                                colors = ButtonDefaults.buttonColors(containerColor = NestXBlue),
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                                modifier = Modifier.height(28.dp)
-                                            ) {
-                                                Text("Review", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.height(10.dp))
+                                Divider(color = BorderColor, thickness = 0.5.dp)
+                                Spacer(Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    // Admin must open the full listing (photos, description,
+                                    // location, submitter info) before approving or rejecting —
+                                    // no more one-tap approve/reject straight from the list.
+                                    // Rejection reason validation lives in AdminPropertyReviewScreen,
+                                    // where the Confirm Rejection button stays disabled until a
+                                    // non-blank reason is entered.
+                                    when (property.approvalStatus) {
+                                        ApprovalStatus.PENDING -> {
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    "Approval Expected",
+                                                    color = TextSecondary,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                )
+                                                Spacer(Modifier.height(4.dp))
+                                                Button(
+                                                    onClick = { onPropertyClick(property.id) },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = NestXBlue),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                                    modifier = Modifier.height(34.dp)
+                                                ) {
+                                                    Text("Review", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                }
                                             }
                                         }
-                                    }
-                                    ApprovalStatus.REJECTED -> {
-                                        Button(
-                                            onClick = { onReApprove(property.id) },
-                                            colors = ButtonDefaults.buttonColors(containerColor = StatusApproved),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                            modifier = Modifier.height(28.dp)
-                                        ) {
-                                            Text("Re-Approve", color = Color.White, fontSize = 10.sp)
+                                        ApprovalStatus.REJECTED -> {
+                                            Button(
+                                                onClick = { onReApprove(property.id) },
+                                                colors = ButtonDefaults.buttonColors(containerColor = StatusApproved),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) {
+                                                Text("Re-Approve", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
                                         }
-                                    }
-                                    else -> {
-                                        TextButton(onClick = { onPropertyClick(property.id) }) {
-                                            Text("View Details", color = NestXBlue, fontSize = 11.sp)
+                                        else -> {
+                                            TextButton(onClick = { onPropertyClick(property.id) }) {
+                                                Text("View Details", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                                Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                            }
                                         }
                                     }
                                 }
                             }
+                        }
+
+                        IconButton(
+                            onClick = { onDeleteSpam(property.id) },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, "Delete", tint = StatusRejected, modifier = Modifier.size(18.dp))
                         }
                     }
                 }

@@ -126,7 +126,7 @@ private fun PropertyDetailContent(
     // bar would be redundant. Contact numbers (callNumber/waNumber) are still resolved above
     // for that in-content card.
 
-    Scaffold { padding ->
+    Scaffold(containerColor = SurfaceGray) { padding ->
         LazyColumn(modifier = Modifier.padding(bottom = padding.calculateBottomPadding())) {
 
             // ── Image Carousel (swipeable) ───────────────────────────────────
@@ -228,8 +228,14 @@ private fun PropertyDetailContent(
                 )
             }
 
-            // ── Price + Title ────────────────────────────────────────────────
+            // ── Price + Title ───────────────────────────────────────────────
             item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -320,11 +326,17 @@ private fun PropertyDetailContent(
                         Text("${property.neighborhood.orEmpty()}, ${property.district.orEmpty()}", fontSize = 13.sp, color = TextSecondary)
                     }
                 }
-                HorizontalDivider(color = BorderColor)
+                }
             }
 
             // ── Stats Row — category-aware ───────────────────────────────────
             item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
                 Row(
                     modifier              = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -384,32 +396,50 @@ private fun PropertyDetailContent(
                         }
                     }
                 }
-                HorizontalDivider(color = BorderColor)
+                }
             }
 
             // ── Agent Contact Card (shown early — 3rd item) ──────────────────
             item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
                 AgentContactSection(
                     property   = property,
                     context    = context,
                     callNumber = callNumber,
                     waNumber   = waNumber,
                 )
-                HorizontalDivider(color = BorderColor)
+                }
             }
 
             // ── Reference ────────────────────────────────────────────────────
             item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
                 Text(
                     "Ref: ${property.referenceId}  •  Listed: ${property.createdAt.take(10)}",
                     fontSize = 11.sp, color = TextSecondary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
-                HorizontalDivider(color = BorderColor)
+                }
             }
 
             // ── Description ──────────────────────────────────────────────────
             item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Description", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     Spacer(Modifier.height(6.dp))
@@ -425,12 +455,18 @@ private fun PropertyDetailContent(
                         }
                     }
                 }
-                HorizontalDivider(color = BorderColor)
+                }
             }
 
             // ── Amenities ────────────────────────────────────────────────────
             if (property.amenities.isNotEmpty()) {
                 item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Amenities", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Spacer(Modifier.height(8.dp))
@@ -446,27 +482,39 @@ private fun PropertyDetailContent(
                             }
                         }
                     }
-                    HorizontalDivider(color = BorderColor)
+                    }
                 }
             }
 
             // ── Company Profile (Contractor / Maintenance) ───────────────────
             if (!property.companyProfile.isNullOrBlank()) {
                 item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Company Profile", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Spacer(Modifier.height(8.dp))
                         Text(property.companyProfile, fontSize = 14.sp, color = TextPrimary)
                     }
-                    HorizontalDivider(color = BorderColor)
+                    }
                 }
             }
 
             // ── Category-specific extra details ─────────────────────────────
             if (!property.metadata.isNullOrEmpty()) {
                 item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    ) {
                     CategoryMetaSection(property = property)
-                    HorizontalDivider(color = BorderColor)
+                    }
                 }
             }
 
@@ -475,6 +523,12 @@ private fun PropertyDetailContent(
             val hasInstagram = !property.instagramUrl.isNullOrBlank()
             if (hasYoutube || hasInstagram) {
                 item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Virtual Media Tour", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Spacer(Modifier.height(10.dp))
@@ -505,7 +559,7 @@ private fun PropertyDetailContent(
                             }
                         }
                     }
-                    HorizontalDivider(color = BorderColor)
+                    }
                 }
             }
 
@@ -514,6 +568,12 @@ private fun PropertyDetailContent(
             val hasHospitals = property.nearbyHospitals.isNotEmpty()
             if (hasSchools || hasHospitals) {
                 item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Nearby Places", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                         if (hasSchools) {
@@ -533,13 +593,19 @@ private fun PropertyDetailContent(
                             }
                         }
                     }
-                    HorizontalDivider(color = BorderColor)
+                    }
                 }
             }
 
             // ── Property Documents ──────────────────────────────────────────
             if (property.documentUrls.isNotEmpty()) {
                 item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Property Documents", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                         Spacer(Modifier.height(8.dp))
@@ -567,14 +633,20 @@ private fun PropertyDetailContent(
                             HorizontalDivider(color = BorderColor.copy(alpha = 0.5f))
                         }
                     }
-                    HorizontalDivider(color = BorderColor)
+                    }
                 }
             }
 
             // ── Location / Map ───────────────────────────────────────────────
             item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
                 PropertyMapSection(property = property, context = context)
-                HorizontalDivider(color = BorderColor)
+                }
             }
 
             // ── Similar Properties ───────────────────────────────────────────
@@ -1168,10 +1240,24 @@ private fun PropertyMapSection(
 
 @Composable
 private fun StatItem(emoji: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(emoji, fontSize = 20.sp)
-        Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 4.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .background(BannerBlue, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(emoji, fontSize = 18.sp)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            label,
+            fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

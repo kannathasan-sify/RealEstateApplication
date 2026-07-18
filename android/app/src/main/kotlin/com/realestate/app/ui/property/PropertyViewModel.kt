@@ -187,7 +187,16 @@ class PropertyViewModel @Inject constructor(
                 it.propertyId == id && it.buyerId == MockData.currentUser.id
             }
         } else {
-            _hasExpressedInterest.value = false   // POST is an idempotent upsert; safe to re-tap
+            // Reset first (avoids briefly showing a stale "already interested" state left
+            // over from a previously viewed property), then ask the server for the buyer's
+            // real enquiry history so returning to this screen correctly shows "Enquiry
+            // sent" instead of always falling back to "I'm Interested".
+            _hasExpressedInterest.value = false
+            viewModelScope.launch {
+                repo.getMyLeads().onSuccess { leads ->
+                    _hasExpressedInterest.value = leads.any { it.propertyId == id }
+                }
+            }
         }
     }
 
