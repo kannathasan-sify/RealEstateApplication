@@ -646,11 +646,21 @@ private fun PropertiesTabContent(
     onDeleteSpam: (String) -> Unit
 ) {
     var filterState by remember { mutableIntStateOf(0) }
-    val displayList = when (filterState) {
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredByTab = when (filterState) {
         0 -> pending
         1 -> approved
         2 -> rejected
         else -> all
+    }
+    val displayList = if (searchQuery.isBlank()) {
+        filteredByTab
+    } else {
+        filteredByTab.filter {
+            it.title.orEmpty().contains(searchQuery, ignoreCase = true) ||
+                    it.district?.contains(searchQuery, ignoreCase = true) == true ||
+                it.agentName.contains(searchQuery, ignoreCase = true)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -661,10 +671,18 @@ private fun PropertiesTabContent(
             Tab(selected = filterState == 3, onClick = { filterState = 3 }, text = { Text("All", fontSize = 11.sp) })
         }
 
+        AdminSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search by title, area, or owner",
+        )
+
         if (displayList.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No properties found in this category", color = TextSecondary)
-            }
+            EmptyState(
+                icon = Icons.Default.HomeWork,
+                title = "No properties found",
+                subtitle = if (searchQuery.isBlank()) "Nothing in this category right now." else "No results for \"$searchQuery\".",
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -705,12 +723,26 @@ private fun PropertiesTabContent(
 
                                 when (property.approvalStatus) {
                                     ApprovalStatus.PENDING -> {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            TextButton(onClick = { onApprove(property.id) }) {
-                                                Text("Approve", color = StatusApproved, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                            TextButton(onClick = { onReject(property.id) }) {
-                                                Text("Reject", color = StatusRejected, fontSize = 11.sp)
+                                        // Admin must open the full listing (photos, description,
+                                        // location, submitter info) before approving or rejecting —
+                                        // no more one-tap approve/reject straight from the list.
+                                        // Rejection reason validation lives in AdminPropertyReviewScreen,
+                                        // where the Confirm Rejection button stays disabled until a
+                                        // non-blank reason is entered.
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                "Approval Expected",
+                                                color = TextSecondary,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Medium,
+                                            )
+                                            Button(
+                                                onClick = { onPropertyClick(property.id) },
+                                                colors = ButtonDefaults.buttonColors(containerColor = NestXBlue),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(28.dp)
+                                            ) {
+                                                Text("Review", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
@@ -749,11 +781,20 @@ private fun UsersTabContent(
     onDelete: (String) -> Unit
 ) {
     var roleFilter by remember { mutableStateOf("all") }
-    val displayUsers = when (roleFilter) {
+    var searchQuery by remember { mutableStateOf("") }
+    val roleFiltered = when (roleFilter) {
         "all" -> users
         "agent" -> users.filter { it.roleStr == "agent" || it.roleStr == "agency" }
         "builder" -> users.filter { it.roleStr == "builder" || it.roleStr == "developer" }
         else -> users.filter { it.roleStr == "buyer" }
+    }
+    val displayUsers = if (searchQuery.isBlank()) {
+        roleFiltered
+    } else {
+        roleFiltered.filter {
+            it.fullName.contains(searchQuery, ignoreCase = true) ||
+                it.email.contains(searchQuery, ignoreCase = true)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -773,10 +814,18 @@ private fun UsersTabContent(
             }
         }
 
+        AdminSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search by name or email",
+        )
+
         if (displayUsers.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No users found matching filter", color = TextSecondary)
-            }
+            EmptyState(
+                icon = Icons.Default.PeopleOutline,
+                title = "No users found",
+                subtitle = if (searchQuery.isBlank()) "Try a different filter." else "No results for \"$searchQuery\".",
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -844,17 +893,37 @@ private fun UsersTabContent(
 
 @Composable
 private fun PaymentsTabContent(payments: List<AdminPayment>) {
-    if (payments.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No transactions or payments recorded yet", color = TextSecondary)
-        }
+    var searchQuery by remember { mutableStateOf("") }
+    val displayPayments = if (searchQuery.isBlank()) {
+        payments
     } else {
+        payments.filter {
+            (it.profiles?.fullName ?: "").contains(searchQuery, ignoreCase = true) ||
+                (it.profiles?.email ?: "").contains(searchQuery, ignoreCase = true) ||
+                it.tier.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        AdminSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search by name or email",
+        )
+
+        if (displayPayments.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.ReceiptLong,
+                title = "No transactions yet",
+                subtitle = if (searchQuery.isBlank()) "Payments and subscription upgrades will appear here." else "No results for \"$searchQuery\".",
+            )
+        } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(payments) { pay ->
+            items(displayPayments) { pay ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -895,6 +964,7 @@ private fun PaymentsTabContent(payments: List<AdminPayment>) {
             }
         }
     }
+    }
 }
 
 // ── COMPLAINTS PANEL ─────────────────────────────────────────────────────────
@@ -904,17 +974,36 @@ private fun ComplaintsTabContent(
     tickets: List<SupportTicket>,
     onTicketClick: (SupportTicket) -> Unit
 ) {
-    if (tickets.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No help complaints or support tickets found", color = TextSecondary)
-        }
+    var searchQuery by remember { mutableStateOf("") }
+    val displayTickets = if (searchQuery.isBlank()) {
+        tickets
     } else {
+        tickets.filter {
+            it.subject.contains(searchQuery, ignoreCase = true) ||
+                (it.profiles?.fullName ?: "").contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        AdminSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search by subject or name",
+        )
+
+        if (displayTickets.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.SupportAgent,
+                title = "No complaints found",
+                subtitle = if (searchQuery.isBlank()) "Support tickets will show up here." else "No results for \"$searchQuery\".",
+            )
+        } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(tickets) { ticket ->
+            items(displayTickets) { ticket ->
                 val isResolved = ticket.status == "resolved"
                 Card(
                     modifier = Modifier
@@ -952,6 +1041,7 @@ private fun ComplaintsTabContent(
             }
         }
     }
+    }
 }
 
 // ── ENQUIRIES (PROPERTY LEADS) PANEL ─────────────────────────────────────────
@@ -963,17 +1053,36 @@ private fun EnquiriesTabContent(
     onReject: (String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
-    if (leads.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No property enquiries yet", color = TextSecondary)
-        }
+    var searchQuery by remember { mutableStateOf("") }
+    val displayLeads = if (searchQuery.isBlank()) {
+        leads
     } else {
+        leads.filter {
+            (it.buyerName ?: "").contains(searchQuery, ignoreCase = true) ||
+                (it.propertyTitle ?: "").contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        AdminSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search by buyer or property",
+        )
+
+        if (displayLeads.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.MarkEmailRead,
+                title = "No enquiries yet",
+                subtitle = if (searchQuery.isBlank()) "Buyer enquiries will show up here." else "No results for \"$searchQuery\".",
+            )
+        } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(leads, key = { it.id }) { lead ->
+            items(displayLeads, key = { it.id }) { lead ->
                 val isRejected = lead.statusEnum == LeadStatus.REJECTED
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -1058,6 +1167,7 @@ private fun EnquiriesTabContent(
             }
         }
     }
+    }
 }
 
 // ── BUILDERS PANEL ───────────────────────────────────────────────────────────
@@ -1070,6 +1180,16 @@ private fun BuildersTabContent(
     onChangeRole: (String, String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    val displayBuilders = if (searchQuery.isBlank()) {
+        builders
+    } else {
+        builders.filter {
+            it.fullName.contains(searchQuery, ignoreCase = true) ||
+                it.email.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -1090,17 +1210,25 @@ private fun BuildersTabContent(
             }
         }
 
-        if (builders.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No builder accounts yet", color = TextSecondary)
-            }
+        AdminSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search by name or email",
+        )
+
+        if (displayBuilders.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.Engineering,
+                title = "No builder accounts yet",
+                subtitle = if (searchQuery.isBlank()) "Builders you add will appear here." else "No results for \"$searchQuery\".",
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(builders, key = { it.id }) { builder ->
+                items(displayBuilders, key = { it.id }) { builder ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -1164,6 +1292,16 @@ private fun AgenciesTabContent(
     onChangeRole: (String, String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    val displayAgencies = if (searchQuery.isBlank()) {
+        agencies
+    } else {
+        agencies.filter {
+            it.fullName.contains(searchQuery, ignoreCase = true) ||
+                it.email.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -1173,17 +1311,25 @@ private fun AgenciesTabContent(
             Text("${agencies.size} agency account(s)", fontSize = 13.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
         }
 
-        if (agencies.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No agency accounts yet", color = TextSecondary)
-            }
+        AdminSearchField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            placeholder = "Search by name or email",
+        )
+
+        if (displayAgencies.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.Business,
+                title = "No agency accounts yet",
+                subtitle = if (searchQuery.isBlank()) "Agencies you verify will appear here." else "No results for \"$searchQuery\".",
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(agencies, key = { it.id }) { agency ->
+                items(displayAgencies, key = { it.id }) { agency ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -1321,4 +1467,75 @@ private fun StatPanel(title: String, value: String, icon: String, modifier: Modi
             Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         }
     }
+}
+// ── Shared admin UI helpers ──────────────────────────────────────────────────
+
+@Composable
+private fun EmptyState(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .background(SurfaceGray, RoundedCornerShape(32.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(30.dp))
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                title,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = TextPrimary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                subtitle,
+                fontSize = 12.sp,
+                color = TextSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdminSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        placeholder = { Text(placeholder, fontSize = 13.sp) },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                }
+            }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = NestXBlue,
+            unfocusedBorderColor = BorderColor,
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
+        ),
+    )
 }

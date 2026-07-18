@@ -59,9 +59,13 @@ fun MenuScreen(
 
         // ── Header card ──────────────────────────────────────────────────────
         item {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color.White,
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -145,7 +149,14 @@ fun MenuScreen(
         // ── Quick actions ────────────────────────────────────────────────────
         item {
             Spacer(Modifier.height(8.dp))
-            Surface(modifier = Modifier.fillMaxWidth(), color = Color.White) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -227,7 +238,14 @@ fun MenuScreen(
         // ── Logout ───────────────────────────────────────────────────────────
         item {
             Spacer(Modifier.height(8.dp))
-            Surface(modifier = Modifier.fillMaxWidth(), color = Color.White) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -288,7 +306,14 @@ private fun QuickActionItem(
 
 @Composable
 private fun MenuGroup(content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier = Modifier.fillMaxWidth(), color = Color.White) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
         Column(content = content)
     }
 }

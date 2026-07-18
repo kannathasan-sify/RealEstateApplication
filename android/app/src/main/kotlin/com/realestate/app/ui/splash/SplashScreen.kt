@@ -46,15 +46,15 @@ fun SplashScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    painter           = painterResource(id = R.drawable.ic_nestx_logo),
-                    contentDescription = "NestX",
+                    painter           = painterResource(id = R.drawable.ic_dnestx_logo),
+                    contentDescription = "DNestX",
                     tint              = androidx.compose.ui.graphics.Color.Unspecified,
                     modifier          = Modifier.size(72.dp),
                 )
             }
             Spacer(Modifier.height(24.dp))
             Text(
-                text       = "NestX",
+                text       = "DNestX",
                 fontSize   = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color      = Color.White,

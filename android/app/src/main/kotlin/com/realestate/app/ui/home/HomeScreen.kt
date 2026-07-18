@@ -725,15 +725,23 @@ private fun HomeTopBar(
     ) {
         // Logo + App name
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                painter            = painterResource(id = R.drawable.ic_nestx_logo),
-                contentDescription = "NestX",
-                modifier           = Modifier.size(34.dp),
-                tint               = Color.Unspecified,
-            )
-            Spacer(Modifier.width(6.dp))
+            // White chip so the navy+gold monogram stays visible on the blue header
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(Color.White, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter            = painterResource(id = R.drawable.ic_dnestx_logo),
+                    contentDescription = "DNestX",
+                    modifier           = Modifier.size(26.dp),
+                    tint               = Color.Unspecified,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
             Text(
-                "NestX",
+                "DNestX",
                 color         = Color.White,
                 fontWeight    = FontWeight.Bold,
                 fontSize      = 21.sp,
