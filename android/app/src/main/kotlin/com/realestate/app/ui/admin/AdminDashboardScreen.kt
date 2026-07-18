@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -18,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -523,8 +525,15 @@ fun AdminDashboardScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AdminPanelSettings, null, tint = AdminBadge)
-                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(AdminBadge.copy(alpha = 0.12f), RoundedCornerShape(9.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Default.AdminPanelSettings, null, tint = AdminBadge, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Text("Control Center", fontWeight = FontWeight.Bold)
                     }
                 },
@@ -538,7 +547,7 @@ fun AdminDashboardScreen(
                         Icon(Icons.Default.Refresh, "Refresh", tint = NestXBlue)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = NestXBlueLight.copy(alpha = 0.08f)),
             )
         }
     ) { padding ->
@@ -844,6 +853,8 @@ private fun UsersTabContent(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            AdminAvatar(name = user.fullName, tint = if (user.isVerified) StatusApproved else NestXBlue)
+                            Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(user.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -936,11 +947,22 @@ private fun PaymentsTabContent(payments: List<AdminPayment>) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(StatusApproved.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Default.ReceiptLong, null, tint = StatusApproved, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Column {
                             Text(pay.profiles?.fullName ?: "Anonymous User", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text(pay.profiles?.email ?: "No email address", fontSize = 12.sp, color = TextSecondary)
                             Text("Plan upgraded: ${pay.tier.uppercase()}", fontSize = 11.sp, color = NestXBlue, fontWeight = FontWeight.Medium)
                             Text("Transaction: ${pay.createdAt.take(10)}", fontSize = 10.sp, color = TextSecondary)
+                        }
                         }
 
                         Column(horizontalAlignment = Alignment.End) {
@@ -1018,6 +1040,15 @@ private fun ComplaintsTabContent(
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(StatusPending.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Default.SupportAgent, null, tint = StatusPending, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(ticket.subject, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text("From: ${ticket.profiles?.fullName ?: "User"}", fontSize = 12.sp, color = TextSecondary)
@@ -1084,83 +1115,154 @@ private fun EnquiriesTabContent(
         ) {
             items(displayLeads, key = { it.id }) { lead ->
                 val isRejected = lead.statusEnum == LeadStatus.REJECTED
+                val statusColor = when (lead.statusEnum) {
+                    LeadStatus.PENDING -> NestXBlue
+                    LeadStatus.CONTACTED -> StatusPending
+                    LeadStatus.VISIT_SCHEDULED -> AdminBadge
+                    LeadStatus.CONVERTED -> StatusApproved
+                    LeadStatus.CLOSED -> TextSecondary
+                    LeadStatus.REJECTED -> StatusRejected
+                }
+                val roleLabel = lead.buyerRole?.replaceFirstChar { it.uppercase() } ?: "Buyer"
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        // ── Header: avatar, name, role pill, property, status pill ──
                         Row(verticalAlignment = Alignment.Top) {
+                            AdminAvatar(name = lead.buyerName ?: "?", tint = statusColor)
+                            Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(
-                                    lead.propertyTitle ?: "Property",
-                                    fontWeight = FontWeight.Bold, fontSize = 14.sp,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                                )
-                                if (!lead.propertyRef.isNullOrBlank()) {
-                                    Text("Ref: ${lead.propertyRef}", fontSize = 11.sp, color = TextSecondary)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        lead.buyerName?.ifBlank { null } ?: "Unknown",
+                                        fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = NestXBlue.copy(alpha = 0.10f),
+                                    ) {
+                                        Text(
+                                            roleLabel,
+                                            fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NestXBlue,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .background(NestXBlue.copy(alpha = 0.10f), RoundedCornerShape(5.dp)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(Icons.Default.Home, null, tint = NestXBlue, modifier = Modifier.size(11.dp))
+                                    }
+                                    Spacer(Modifier.width(5.dp))
+                                    Text(
+                                        lead.propertyTitle ?: "Property",
+                                        fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    if (!lead.propertyRef.isNullOrBlank()) {
+                                        Spacer(Modifier.width(5.dp))
+                                        Surface(shape = RoundedCornerShape(4.dp), color = SurfaceGray) {
+                                            Text(
+                                                lead.propertyRef,
+                                                fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = (if (isRejected) StatusRejected else NestXBlue).copy(alpha = 0.12f)
-                            ) {
-                                Text(
-                                    lead.statusEnum.label.uppercase(),
-                                    color = if (isRejected) StatusRejected else NestXBlue,
-                                    fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
+                            Spacer(Modifier.width(8.dp))
+                            Column(horizontalAlignment = Alignment.End) {
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = statusColor.copy(alpha = 0.12f),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    ) {
+                                        Box(modifier = Modifier.size(6.dp).background(statusColor, CircleShape))
+                                        Spacer(Modifier.width(5.dp))
+                                        Text(
+                                            lead.statusEnum.label,
+                                            color = statusColor, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(lead.createdAt.take(10), fontSize = 10.sp, color = TextSecondary)
                             }
                         }
 
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Person, null, tint = TextSecondary, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            val roleLabel = lead.buyerRole?.replaceFirstChar { it.uppercase() } ?: "Buyer"
-                            Text(
-                                "${lead.buyerName?.ifBlank { null } ?: "Unknown"} ($roleLabel)",
-                                fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary
-                            )
-                        }
                         if (!lead.buyerPhone.isNullOrBlank()) {
-                            Text(lead.buyerPhone, fontSize = 11.sp, color = TextSecondary)
-                        }
-                        if (!lead.message.isNullOrBlank()) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "\"${lead.message}\"", fontSize = 12.sp, color = TextSecondary,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Phone, null, tint = NestXBlue, modifier = Modifier.size(13.dp))
+                                Spacer(Modifier.width(5.dp))
+                                Text(lead.buyerPhone, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                            }
                         }
 
-                        Spacer(Modifier.height(8.dp))
-                        Divider(color = BorderColor, thickness = 0.5.dp)
-                        Spacer(Modifier.height(4.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = { onEdit(lead) }) {
-                                Icon(Icons.Default.Edit, null, tint = NestXBlue, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Edit", color = NestXBlue, fontSize = 12.sp)
-                            }
-                            TextButton(onClick = { onReject(lead.id) }, enabled = !isRejected) {
-                                Icon(
-                                    Icons.Default.Block, null,
-                                    tint = if (isRejected) TextSecondary else StatusPending,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(Modifier.width(4.dp))
+                        if (!lead.message.isNullOrBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Surface(shape = RoundedCornerShape(10.dp), color = SurfaceGray) {
                                 Text(
-                                    if (isRejected) "Rejected" else "Reject",
-                                    color = if (isRejected) TextSecondary else StatusPending, fontSize = 12.sp
+                                    "\u201c${lead.message}\u201d",
+                                    fontSize = 12.sp, color = TextSecondary,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                 )
                             }
-                            TextButton(onClick = { onDelete(lead.id) }) {
-                                Icon(Icons.Default.Delete, null, tint = PrimaryRed, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Delete", color = PrimaryRed, fontSize = 12.sp)
-                            }
+                        }
+
+                        Spacer(Modifier.height(10.dp))
+                        Divider(color = BorderColor, thickness = 0.5.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            EnquiryActionButton(
+                                icon = Icons.Default.Edit, label = "Edit", tint = NestXBlue,
+                                modifier = Modifier.weight(1f), onClick = { onEdit(lead) },
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(28.dp)
+                                    .background(BorderColor)
+                            )
+                            EnquiryActionButton(
+                                icon = Icons.Default.Block,
+                                label = if (isRejected) "Rejected" else "Reject",
+                                tint = if (isRejected) TextSecondary else StatusPending,
+                                enabled = !isRejected,
+                                modifier = Modifier.weight(1f), onClick = { onReject(lead.id) },
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(28.dp)
+                                    .background(BorderColor)
+                            )
+                            EnquiryActionButton(
+                                icon = Icons.Default.Delete, label = "Delete", tint = StatusRejected,
+                                modifier = Modifier.weight(1f), onClick = { onDelete(lead.id) },
+                            )
                         }
                     }
                 }
@@ -1240,6 +1342,8 @@ private fun BuildersTabContent(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            AdminAvatar(name = builder.fullName, tint = if (builder.isVerified) StatusApproved else NestXBlue)
+                            Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(builder.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -1341,6 +1445,8 @@ private fun AgenciesTabContent(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            AdminAvatar(name = agency.fullName, tint = if (agency.isVerified) StatusApproved else NestXBlue)
+                            Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(agency.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -1469,6 +1575,44 @@ private fun StatPanel(title: String, value: String, icon: String, modifier: Modi
     }
 }
 // ── Shared admin UI helpers ──────────────────────────────────────────────────
+
+@Composable
+private fun EnquiryActionButton(
+    icon: ImageVector,
+    label: String,
+    tint: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 6.dp),
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.height(2.dp))
+        Text(label, color = tint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun AdminAvatar(name: String, tint: androidx.compose.ui.graphics.Color = NestXBlue) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .background(tint.copy(alpha = 0.15f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = name.trim().firstOrNull()?.uppercase()?.toString() ?: "?",
+            color = tint,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+        )
+    }
+}
 
 @Composable
 private fun EmptyState(
