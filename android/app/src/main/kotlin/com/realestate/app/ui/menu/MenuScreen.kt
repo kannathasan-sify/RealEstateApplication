@@ -26,7 +26,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.realestate.app.BuildConfig
-import com.realestate.app.data.models.UserRole
 import com.realestate.app.ui.theme.*
 
 /**
@@ -244,33 +243,30 @@ fun MenuScreen(
             }
         }
 
-        // ── Dashboards (analytics) — role-gated to match the backend endpoints ─
+        // ── Dashboards (analytics) ───────────────────────────────────────────
+        // All three are self-scoped to the current user (they see their own owner/agent/
+        // partner data — empty state if they have none), so they're open to everyone. The
+        // platform-wide Admin Analytics lives under the admin-only group below.
         item {
-            val role = user?.role
             Spacer(Modifier.height(16.dp))
             MenuGroup(title = "Dashboards") {
-                // Owner analytics is available to any user (scoped to their own listings).
                 MenuRowItem(
                     icon = Icons.Filled.Dashboard,
                     label = "Owner Dashboard",
                     onClick = onNavigateOwnerDashboard,
                 )
-                if (role == UserRole.AGENT || isAdmin) {
-                    MenuDivider()
-                    MenuRowItem(
-                        icon = Icons.Filled.SupportAgent,
-                        label = "Agent Dashboard",
-                        onClick = onNavigateAgentDashboard,
-                    )
-                }
-                if (role == UserRole.CHANNEL_PARTNER || isAdmin) {
-                    MenuDivider()
-                    MenuRowItem(
-                        icon = Icons.Filled.Groups,
-                        label = "Channel Partner Dashboard",
-                        onClick = onNavigatePartnerDashboard,
-                    )
-                }
+                MenuDivider()
+                MenuRowItem(
+                    icon = Icons.Filled.SupportAgent,
+                    label = "Agent Dashboard",
+                    onClick = onNavigateAgentDashboard,
+                )
+                MenuDivider()
+                MenuRowItem(
+                    icon = Icons.Filled.Groups,
+                    label = "Channel Partner Dashboard",
+                    onClick = onNavigatePartnerDashboard,
+                )
             }
         }
 

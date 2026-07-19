@@ -497,9 +497,11 @@ async def agent_dashboard(
     current_user: dict = Depends(get_current_user),
     supabase           = Depends(get_supabase),
 ):
-    """Agent CRM analytics: listings, lead pipeline by stage, commission trend, lead inbox."""
-    if current_user.get("role") != "agent":
-        raise HTTPException(status_code=403, detail="Agent access required")
+    """
+    Agent CRM analytics: listings, lead pipeline by stage, commission trend, lead inbox.
+    Self-scoped to the caller (their own listings/leads/commissions) — like the Owner
+    dashboard — so any authenticated user may call it; a non-agent simply sees an empty state.
+    """
     uid = current_user["id"]
     now = datetime.now(timezone.utc)
     month_start = _month_start(now)
@@ -578,9 +580,11 @@ async def partner_dashboard(
     current_user: dict = Depends(get_current_user),
     supabase           = Depends(get_supabase),
 ):
-    """Channel-partner analytics: referral funnel, conversion, commission payouts, pipeline."""
-    if current_user.get("role") != "channel_partner":
-        raise HTTPException(status_code=403, detail="Channel partner access required")
+    """
+    Channel-partner analytics: referral funnel, conversion, commission payouts, pipeline.
+    Self-scoped to the caller (their own referrals/commissions), so any authenticated user may
+    call it; a non-partner simply sees an empty state.
+    """
     uid = current_user["id"]
     now = datetime.now(timezone.utc)
     month_start = _month_start(now)
