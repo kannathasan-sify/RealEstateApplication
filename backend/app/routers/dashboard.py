@@ -114,10 +114,25 @@ def _pretty(value: Optional[str]) -> str:
     return (value or "").replace("_", " ").title()
 
 
+def _resolve_uid(current_user: dict, user_id: Optional[str]) -> str:
+    """
+    Resolve whose data to return. Normally the caller's own id; but an admin may pass
+    ?user_id=<other> to view that user's dashboard (agent-wise / builder-wise filtering on
+    the admin console). Non-admins asking for someone else get 403.
+    """
+    uid = current_user["id"]
+    if user_id and user_id != uid:
+        if current_user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Only admins can view another user's dashboard")
+        return user_id
+    return uid
+
+
 # ── GET /dashboard/owner ──────────────────────────────────────────────────────
 
 @router.get("/owner", response_model=OwnerDashboardResponse, summary="Owner analytics")
 async def owner_dashboard(
+    user_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     supabase           = Depends(get_supabase),
 ):
@@ -125,9 +140,10 @@ async def owner_dashboard(
     Real analytics for the signed-in owner, scoped to properties they own:
     property count, total views, leads and saves, per-property view breakdown, a 14-day
     view trend and a table of their listings. Any authenticated user can call this — it
-    simply reflects whatever listings they own (empty state if none).
+    simply reflects whatever listings they own (empty state if none). Admins may pass
+    ?user_id= to view a specific owner/builder (builder-wise filter on the admin console).
     """
-    uid = current_user["id"]
+    uid = _resolve_uid(current_user, user_id)
     now = datetime.now(timezone.utc)
     window_30 = now - timedelta(days=30)
     window_60 = now - timedelta(days=60)
@@ -494,6 +510,7 @@ def _time_ago(ts_str: Optional[str]) -> str:
 
 @router.get("/agent", response_model=AgentDashboardResponse, summary="Agent analytics")
 async def agent_dashboard(
+    user_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     supabase           = Depends(get_supabase),
 ):
@@ -501,8 +518,9 @@ async def agent_dashboard(
     Agent CRM analytics: listings, lead pipeline by stage, commission trend, lead inbox.
     Self-scoped to the caller (their own listings/leads/commissions) — like the Owner
     dashboard — so any authenticated user may call it; a non-agent simply sees an empty state.
+    Admins may pass ?user_id= to view a specific agent (agent-wise filter on the admin console).
     """
-    uid = current_user["id"]
+    uid = _resolve_uid(current_user, user_id)
     now = datetime.now(timezone.utc)
     month_start = _month_start(now)
 

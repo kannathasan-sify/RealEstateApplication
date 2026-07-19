@@ -223,17 +223,17 @@ class PropertyRepository @Inject constructor(
 
     // ── Dashboards ──────────────────────────────────────────────────────────────
 
-    /** Real owner analytics (properties/views/leads/saves), mapped to the UI model. */
-    suspend fun getOwnerDashboard(): Result<OwnerDashboardData> =
-        runCatching { api.getOwnerDashboard().toDomain() }
+    /** Real owner analytics. [userId] is an admin-only override to view another owner/builder. */
+    suspend fun getOwnerDashboard(userId: String? = null): Result<OwnerDashboardData> =
+        runCatching { api.getOwnerDashboard(userId).toDomain() }
 
     /** Real admin analytics (users/revenue/approvals/fraud). Admin-only on the backend. */
     suspend fun getAdminDashboard(): Result<AdminDashboardData> =
         runCatching { api.getAdminDashboard().toDomain() }
 
-    /** Real agent analytics (listings/pipeline/commission). Agent-only on the backend. */
-    suspend fun getAgentDashboard(): Result<AgentDashboardData> =
-        runCatching { api.getAgentDashboard().toDomain() }
+    /** Real agent analytics. [userId] is an admin-only override to view another agent. */
+    suspend fun getAgentDashboard(userId: String? = null): Result<AgentDashboardData> =
+        runCatching { api.getAgentDashboard(userId).toDomain() }
 
     /** Real channel-partner analytics (referrals/payouts). Partner-only on the backend. */
     suspend fun getPartnerDashboard(): Result<PartnerDashboardData> =

@@ -124,14 +124,15 @@ interface ApiService {
     suspend fun recordPropertyView(@Path("id") id: String)
 
     // ── Dashboards ──────────────────────────────────────────────────────────
+    // userId is an admin-only override (view another owner/agent's dashboard); null = self.
     @GET("dashboard/owner")
-    suspend fun getOwnerDashboard(): OwnerDashboardResponseDto
+    suspend fun getOwnerDashboard(@Query("user_id") userId: String? = null): OwnerDashboardResponseDto
 
     @GET("dashboard/admin")
     suspend fun getAdminDashboard(): AdminDashboardResponseDto
 
     @GET("dashboard/agent")
-    suspend fun getAgentDashboard(): AgentDashboardResponseDto
+    suspend fun getAgentDashboard(@Query("user_id") userId: String? = null): AgentDashboardResponseDto
 
     @GET("dashboard/partner")
     suspend fun getPartnerDashboard(): PartnerDashboardResponseDto

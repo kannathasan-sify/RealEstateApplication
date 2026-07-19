@@ -106,14 +106,44 @@ class PartnerDashboardViewModel @Inject constructor(
     }
 }
 
+/** Which lens the admin dashboard is showing. */
+enum class AdminScope { PLATFORM, AGENT, BUILDER }
+
+/** A pickable agent/builder for the admin's agent-wise / builder-wise filter. */
+data class AdminPerson(val id: String, val name: String, val verified: Boolean)
+
 @HiltViewModel
 class AdminAnalyticsDashboardViewModel @Inject constructor(
     private val repo: PropertyRepository,
 ) : ViewModel() {
+    // Platform-wide analytics
     private val _uiState = MutableStateFlow<DashboardUiState<AdminDashboardData>>(DashboardUiState.Loading)
     val uiState: StateFlow<DashboardUiState<AdminDashboardData>> = _uiState
 
-    init { load() }
+    // Filter scope + pickable people
+    private val _scope = MutableStateFlow(AdminScope.PLATFORM)
+    val scope: StateFlow<AdminScope> = _scope
+
+    private val _agents = MutableStateFlow<List<AdminPerson>>(emptyList())
+    val agents: StateFlow<List<AdminPerson>> = _agents
+
+    private val _builders = MutableStateFlow<List<AdminPerson>>(emptyList())
+    val builders: StateFlow<List<AdminPerson>> = _builders
+
+    private val _selected = MutableStateFlow<AdminPerson?>(null)
+    val selected: StateFlow<AdminPerson?> = _selected
+
+    // Selected agent's dashboard (agent lens) / selected builder's dashboard (owner lens)
+    private val _agentState = MutableStateFlow<DashboardUiState<AgentDashboardData>>(DashboardUiState.Loading)
+    val agentState: StateFlow<DashboardUiState<AgentDashboardData>> = _agentState
+
+    private val _builderState = MutableStateFlow<DashboardUiState<OwnerDashboardData>>(DashboardUiState.Loading)
+    val builderState: StateFlow<DashboardUiState<OwnerDashboardData>> = _builderState
+
+    init {
+        load()
+        loadPeople()
+    }
 
     fun load() {
         viewModelScope.launch {
@@ -126,6 +156,75 @@ class AdminAnalyticsDashboardViewModel @Inject constructor(
                     onSuccess = { _uiState.value = DashboardUiState.Success(it) },
                     onFailure = {
                         _uiState.value = DashboardUiState.Error(it.message ?: "Failed to load dashboard")
+                    },
+                )
+            }
+        }
+    }
+
+    private fun loadPeople() {
+        viewModelScope.launch {
+            if (BuildConfig.USE_MOCK_DATA) {
+                _agents.value = listOf(AdminPerson("agent-1", "Priya Sharma", true))
+                _builders.value = listOf(AdminPerson("builder-1", "Skyline Developers", true))
+                return@launch
+            }
+            repo.listUsers("agent").onSuccess { list ->
+                _agents.value = list.map { AdminPerson(it.id, it.fullName.ifBlank { "Agent" }, it.isVerified) }
+            }
+            repo.listUsers("builder").onSuccess { list ->
+                _builders.value = list.map { AdminPerson(it.id, it.fullName.ifBlank { "Builder" }, it.isVerified) }
+            }
+        }
+    }
+
+    fun setScope(newScope: AdminScope) {
+        _scope.value = newScope
+        _selected.value = null
+    }
+
+    fun selectPerson(person: AdminPerson) {
+        _selected.value = person
+        when (_scope.value) {
+            AdminScope.AGENT -> loadAgent(person.id)
+            AdminScope.BUILDER -> loadBuilder(person.id)
+            AdminScope.PLATFORM -> Unit
+        }
+    }
+
+    /** Re-run whichever filtered view is currently selected (Retry / refresh). */
+    fun retrySelected() {
+        _selected.value?.let { selectPerson(it) }
+    }
+
+    private fun loadAgent(id: String) {
+        viewModelScope.launch {
+            _agentState.value = DashboardUiState.Loading
+            if (BuildConfig.USE_MOCK_DATA) {
+                delay(400)
+                _agentState.value = DashboardUiState.Success(DashboardMockData.agent)
+            } else {
+                repo.getAgentDashboard(id).fold(
+                    onSuccess = { _agentState.value = DashboardUiState.Success(it) },
+                    onFailure = {
+                        _agentState.value = DashboardUiState.Error(it.message ?: "Failed to load agent dashboard")
+                    },
+                )
+            }
+        }
+    }
+
+    private fun loadBuilder(id: String) {
+        viewModelScope.launch {
+            _builderState.value = DashboardUiState.Loading
+            if (BuildConfig.USE_MOCK_DATA) {
+                delay(400)
+                _builderState.value = DashboardUiState.Success(DashboardMockData.owner)
+            } else {
+                repo.getOwnerDashboard(id).fold(
+                    onSuccess = { _builderState.value = DashboardUiState.Success(it) },
+                    onFailure = {
+                        _builderState.value = DashboardUiState.Error(it.message ?: "Failed to load builder dashboard")
                     },
                 )
             }
