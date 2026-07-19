@@ -6,6 +6,7 @@ enum class UserRole(val displayName: String, val badgeColor: String) {
     BUYER("Buyer",   "#9E9E9E"),
     AGENT("Agent",   "#1565C0"),
     BUILDER("Builder","#F57C00"),
+    CHANNEL_PARTNER("Channel Partner", "#00897B"),
     ADMIN("Admin",   "#6A1B9A");
 
     companion object {

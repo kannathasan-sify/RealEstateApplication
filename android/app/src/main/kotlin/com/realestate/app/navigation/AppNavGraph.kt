@@ -198,6 +198,10 @@ fun AppNavGraph() {
                     onNavigatePostServiceRequest = { navController.navigate(Screen.PostServiceRequest.route) },
                     onNavigateServiceRequestFeed = { navController.navigate(Screen.ServiceRequestList.route) },
                     onNavigateSubscriptionPlans = { navController.navigate(Screen.SubscriptionPlans.route) },
+                    onNavigateOwnerDashboard = { navController.navigate(Screen.OwnerDashboard.route) },
+                    onNavigateAgentDashboard = { navController.navigate(Screen.AgentDashboard.route) },
+                    onNavigatePartnerDashboard = { navController.navigate(Screen.PartnerDashboard.route) },
+                    onNavigateAdminAnalytics = { navController.navigate(Screen.AdminAnalyticsDashboard.route) },
                     onLogout = {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0) { inclusive = true }
@@ -558,6 +562,28 @@ fun AppNavGraph() {
                 composable(Screen.SubscriptionPlans.route) {
                     com.realestate.app.ui.subscription.SubscriptionPlansScreen(
                         viewModel = hiltViewModel(),
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                // ── Role dashboards (analytics) ──────────────────────────────
+                composable(Screen.OwnerDashboard.route) {
+                    com.realestate.app.ui.dashboard.OwnerDashboardScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.AgentDashboard.route) {
+                    com.realestate.app.ui.dashboard.AgentDashboardScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.PartnerDashboard.route) {
+                    com.realestate.app.ui.dashboard.PartnerDashboardScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.AdminAnalyticsDashboard.route) {
+                    com.realestate.app.ui.dashboard.AdminAnalyticsDashboardScreen(
                         onBack = { navController.popBackStack() }
                     )
                 }

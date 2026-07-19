@@ -485,3 +485,29 @@ async def upload_images(
         .execute()
     )
     return PropertyResponse(**result.data[0])
+
+
+@router.post(
+    "/{property_id}/view",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Record a property-detail view (analytics)",
+)
+async def record_property_view(
+    property_id: str,
+    current_user: Optional[dict] = Depends(get_optional_user),
+):
+    """
+    Logs one view of a listing — fired by the app when a property detail screen opens.
+    Feeds the Owner dashboard's view metrics (property_views table). Anonymous views are
+    allowed (viewer_id = NULL). Best-effort: a tracking failure must never break the
+    detail screen, so errors are swallowed.
+    """
+    admin = get_supabase_admin()
+    viewer_id = current_user["id"] if current_user else None
+    try:
+        admin.table("property_views").insert(
+            {"property_id": property_id, "viewer_id": viewer_id}
+        ).execute()
+    except Exception:
+        pass
+    return

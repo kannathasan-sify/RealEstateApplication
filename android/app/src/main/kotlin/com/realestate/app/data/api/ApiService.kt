@@ -119,6 +119,23 @@ interface ApiService {
         @Part files: List<MultipartBody.Part>,
     ): Property
 
+    /** Record a property-detail view (analytics; anonymous allowed). 204 No Content. */
+    @POST("properties/{id}/view")
+    suspend fun recordPropertyView(@Path("id") id: String)
+
+    // ── Dashboards ──────────────────────────────────────────────────────────
+    @GET("dashboard/owner")
+    suspend fun getOwnerDashboard(): OwnerDashboardResponseDto
+
+    @GET("dashboard/admin")
+    suspend fun getAdminDashboard(): AdminDashboardResponseDto
+
+    @GET("dashboard/agent")
+    suspend fun getAgentDashboard(): AgentDashboardResponseDto
+
+    @GET("dashboard/partner")
+    suspend fun getPartnerDashboard(): PartnerDashboardResponseDto
+
     // ── Bookings ────────────────────────────────────────────────────────────
     @GET("bookings")
     suspend fun getBookings(): List<Booking>

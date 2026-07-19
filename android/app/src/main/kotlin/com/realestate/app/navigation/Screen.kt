@@ -80,4 +80,10 @@ sealed class Screen(val route: String) {
 
     // Subscription
     object SubscriptionPlans    : Screen("subscription_plans")
+
+    // Role dashboards (analytics)
+    object OwnerDashboard          : Screen("owner_dashboard")
+    object AgentDashboard          : Screen("agent_dashboard")
+    object PartnerDashboard        : Screen("partner_dashboard")
+    object AdminAnalyticsDashboard : Screen("admin_analytics_dashboard")
 }

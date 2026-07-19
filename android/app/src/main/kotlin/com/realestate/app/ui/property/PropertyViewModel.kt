@@ -267,6 +267,8 @@ class PropertyViewModel @Inject constructor(
                     _detailState.value = PropertyDetailUiState.Error("Property not found")
                 }
             } else {
+                // Fire-and-forget: record this detail open for owner view analytics.
+                viewModelScope.launch { repo.recordPropertyView(id) }
                 val propResult = repo.getProperty(id)
                 val simResult = repo.getSimilar(id)
                 propResult.fold(

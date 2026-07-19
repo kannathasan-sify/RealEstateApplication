@@ -47,7 +47,7 @@ class TokenResponse(BaseModel):
 
 # ─── Profile schemas ──────────────────────────────────────────────────────────
 
-VALID_ROLES = {"buyer", "landlord", "agent", "agency", "developer", "admin"}
+VALID_ROLES = {"buyer", "landlord", "agent", "agency", "developer", "admin", "builder", "channel_partner"}
 
 
 class UserProfile(BaseModel):

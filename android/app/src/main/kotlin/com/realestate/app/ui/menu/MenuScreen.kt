@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.realestate.app.BuildConfig
+import com.realestate.app.data.models.UserRole
 import com.realestate.app.ui.theme.*
 
 /**
@@ -47,6 +48,10 @@ fun MenuScreen(
     onNavigatePostServiceRequest: () -> Unit = {},
     onNavigateServiceRequestFeed: () -> Unit = {},
     onNavigateSubscriptionPlans: () -> Unit = {},
+    onNavigateOwnerDashboard: () -> Unit = {},
+    onNavigateAgentDashboard: () -> Unit = {},
+    onNavigatePartnerDashboard: () -> Unit = {},
+    onNavigateAdminAnalytics: () -> Unit = {},
     onLogout: () -> Unit,
 ) {
     val userName by viewModel.userName.collectAsState()
@@ -239,6 +244,36 @@ fun MenuScreen(
             }
         }
 
+        // ── Dashboards (analytics) — role-gated to match the backend endpoints ─
+        item {
+            val role = user?.role
+            Spacer(Modifier.height(16.dp))
+            MenuGroup(title = "Dashboards") {
+                // Owner analytics is available to any user (scoped to their own listings).
+                MenuRowItem(
+                    icon = Icons.Filled.Dashboard,
+                    label = "Owner Dashboard",
+                    onClick = onNavigateOwnerDashboard,
+                )
+                if (role == UserRole.AGENT || isAdmin) {
+                    MenuDivider()
+                    MenuRowItem(
+                        icon = Icons.Filled.SupportAgent,
+                        label = "Agent Dashboard",
+                        onClick = onNavigateAgentDashboard,
+                    )
+                }
+                if (role == UserRole.CHANNEL_PARTNER || isAdmin) {
+                    MenuDivider()
+                    MenuRowItem(
+                        icon = Icons.Filled.Groups,
+                        label = "Channel Partner Dashboard",
+                        onClick = onNavigatePartnerDashboard,
+                    )
+                }
+            }
+        }
+
         // ── Admin panel (only visible to ADMIN role) ─────────────────────────
         if (isAdmin) {
             item {
@@ -251,6 +286,15 @@ fun MenuScreen(
                         badge      = "Admin",
                         badgeColor = AdminBadge,
                         onClick    = onNavigateAdminPanel,
+                    )
+                    MenuDivider()
+                    MenuRowItem(
+                        icon       = Icons.Filled.Insights,
+                        label      = "Admin Analytics",
+                        tint       = AdminBadge,
+                        badge      = "Admin",
+                        badgeColor = AdminBadge,
+                        onClick    = onNavigateAdminAnalytics,
                     )
                 }
             }

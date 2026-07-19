@@ -221,6 +221,28 @@ class PropertyRepository @Inject constructor(
     suspend fun updateLeadStatus(leadId: String, status: String): Result<PropertyLead> =
         runCatching { api.updateLeadStatus(leadId, LeadStatusUpdateRequest(status)) }
 
+    // ── Dashboards ──────────────────────────────────────────────────────────────
+
+    /** Real owner analytics (properties/views/leads/saves), mapped to the UI model. */
+    suspend fun getOwnerDashboard(): Result<OwnerDashboardData> =
+        runCatching { api.getOwnerDashboard().toDomain() }
+
+    /** Real admin analytics (users/revenue/approvals/fraud). Admin-only on the backend. */
+    suspend fun getAdminDashboard(): Result<AdminDashboardData> =
+        runCatching { api.getAdminDashboard().toDomain() }
+
+    /** Real agent analytics (listings/pipeline/commission). Agent-only on the backend. */
+    suspend fun getAgentDashboard(): Result<AgentDashboardData> =
+        runCatching { api.getAgentDashboard().toDomain() }
+
+    /** Real channel-partner analytics (referrals/payouts). Partner-only on the backend. */
+    suspend fun getPartnerDashboard(): Result<PartnerDashboardData> =
+        runCatching { api.getPartnerDashboard().toDomain() }
+
+    /** Best-effort: record a property-detail view for analytics. Never surface failure. */
+    suspend fun recordPropertyView(propertyId: String): Result<Unit> =
+        runCatching { api.recordPropertyView(propertyId); Unit }
+
     // ── Admin ─────────────────────────────────────────────────────────────────
 
     /** Fetch ALL listings for admin (pending / approved / rejected). */
