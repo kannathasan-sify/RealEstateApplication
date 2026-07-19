@@ -107,7 +107,7 @@ class PartnerDashboardViewModel @Inject constructor(
 }
 
 /** Which lens the admin dashboard is showing. */
-enum class AdminScope { PLATFORM, AGENT, BUILDER }
+enum class AdminScope { PLATFORM, AGENT, BUILDER, PARTNER }
 
 /** A pickable agent/builder for the admin's agent-wise / builder-wise filter. */
 data class AdminPerson(val id: String, val name: String, val verified: Boolean)
@@ -130,15 +130,21 @@ class AdminAnalyticsDashboardViewModel @Inject constructor(
     private val _builders = MutableStateFlow<List<AdminPerson>>(emptyList())
     val builders: StateFlow<List<AdminPerson>> = _builders
 
+    private val _partners = MutableStateFlow<List<AdminPerson>>(emptyList())
+    val partners: StateFlow<List<AdminPerson>> = _partners
+
     private val _selected = MutableStateFlow<AdminPerson?>(null)
     val selected: StateFlow<AdminPerson?> = _selected
 
-    // Selected agent's dashboard (agent lens) / selected builder's dashboard (owner lens)
+    // Selected person's dashboard: agent lens / builder=owner lens / partner lens
     private val _agentState = MutableStateFlow<DashboardUiState<AgentDashboardData>>(DashboardUiState.Loading)
     val agentState: StateFlow<DashboardUiState<AgentDashboardData>> = _agentState
 
     private val _builderState = MutableStateFlow<DashboardUiState<OwnerDashboardData>>(DashboardUiState.Loading)
     val builderState: StateFlow<DashboardUiState<OwnerDashboardData>> = _builderState
+
+    private val _partnerState = MutableStateFlow<DashboardUiState<PartnerDashboardData>>(DashboardUiState.Loading)
+    val partnerState: StateFlow<DashboardUiState<PartnerDashboardData>> = _partnerState
 
     init {
         load()
@@ -167,6 +173,7 @@ class AdminAnalyticsDashboardViewModel @Inject constructor(
             if (BuildConfig.USE_MOCK_DATA) {
                 _agents.value = listOf(AdminPerson("agent-1", "Priya Sharma", true))
                 _builders.value = listOf(AdminPerson("builder-1", "Skyline Developers", true))
+                _partners.value = listOf(AdminPerson("partner-1", "Nikhil Rao", true))
                 return@launch
             }
             repo.listUsers("agent").onSuccess { list ->
@@ -174,6 +181,9 @@ class AdminAnalyticsDashboardViewModel @Inject constructor(
             }
             repo.listUsers("builder").onSuccess { list ->
                 _builders.value = list.map { AdminPerson(it.id, it.fullName.ifBlank { "Builder" }, it.isVerified) }
+            }
+            repo.listUsers("channel_partner").onSuccess { list ->
+                _partners.value = list.map { AdminPerson(it.id, it.fullName.ifBlank { "Partner" }, it.isVerified) }
             }
         }
     }
@@ -188,6 +198,7 @@ class AdminAnalyticsDashboardViewModel @Inject constructor(
         when (_scope.value) {
             AdminScope.AGENT -> loadAgent(person.id)
             AdminScope.BUILDER -> loadBuilder(person.id)
+            AdminScope.PARTNER -> loadPartner(person.id)
             AdminScope.PLATFORM -> Unit
         }
     }
@@ -225,6 +236,23 @@ class AdminAnalyticsDashboardViewModel @Inject constructor(
                     onSuccess = { _builderState.value = DashboardUiState.Success(it) },
                     onFailure = {
                         _builderState.value = DashboardUiState.Error(it.message ?: "Failed to load builder dashboard")
+                    },
+                )
+            }
+        }
+    }
+
+    private fun loadPartner(id: String) {
+        viewModelScope.launch {
+            _partnerState.value = DashboardUiState.Loading
+            if (BuildConfig.USE_MOCK_DATA) {
+                delay(400)
+                _partnerState.value = DashboardUiState.Success(DashboardMockData.partner)
+            } else {
+                repo.getPartnerDashboard(id).fold(
+                    onSuccess = { _partnerState.value = DashboardUiState.Success(it) },
+                    onFailure = {
+                        _partnerState.value = DashboardUiState.Error(it.message ?: "Failed to load partner dashboard")
                     },
                 )
             }

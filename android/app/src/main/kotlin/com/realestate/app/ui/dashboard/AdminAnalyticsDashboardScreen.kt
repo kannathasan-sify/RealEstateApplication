@@ -2,6 +2,7 @@ package com.realestate.app.ui.dashboard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,9 +45,11 @@ fun AdminAnalyticsDashboardScreen(
     val scope by viewModel.scope.collectAsState()
     val agents by viewModel.agents.collectAsState()
     val builders by viewModel.builders.collectAsState()
+    val partners by viewModel.partners.collectAsState()
     val selected by viewModel.selected.collectAsState()
     val agentState by viewModel.agentState.collectAsState()
     val builderState by viewModel.builderState.collectAsState()
+    val partnerState by viewModel.partnerState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -121,6 +124,20 @@ fun AdminAnalyticsDashboardScreen(
                         }
                     }
                 }
+
+                AdminScope.PARTNER -> {
+                    PersonPicker("Select a channel partner", partners, selected, viewModel::selectPerson)
+                    if (selected == null) {
+                        EmptyHint("Pick a channel partner to view their referral funnel and payouts.")
+                    } else {
+                        DashboardInlineState(partnerState, onRetry = viewModel::retrySelected) { data ->
+                            KpiTileGrid(data.tiles)
+                            BarChartCard("Referral funnel", data.referralFunnel)
+                            LineChartCard("Commission payout trend", data.payoutTrend)
+                            DataTableCard("Referral pipeline", data.referralPipeline)
+                        }
+                    }
+                }
             }
         }
     }
@@ -128,10 +145,14 @@ fun AdminAnalyticsDashboardScreen(
 
 @Composable
 private fun ScopeSelector(scope: AdminScope, onSelect: (AdminScope) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         ScopeChip("Platform", scope == AdminScope.PLATFORM) { onSelect(AdminScope.PLATFORM) }
         ScopeChip("By Agent", scope == AdminScope.AGENT) { onSelect(AdminScope.AGENT) }
         ScopeChip("By Builder", scope == AdminScope.BUILDER) { onSelect(AdminScope.BUILDER) }
+        ScopeChip("By Partner", scope == AdminScope.PARTNER) { onSelect(AdminScope.PARTNER) }
     }
 }
 

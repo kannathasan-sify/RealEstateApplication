@@ -235,9 +235,9 @@ class PropertyRepository @Inject constructor(
     suspend fun getAgentDashboard(userId: String? = null): Result<AgentDashboardData> =
         runCatching { api.getAgentDashboard(userId).toDomain() }
 
-    /** Real channel-partner analytics (referrals/payouts). Partner-only on the backend. */
-    suspend fun getPartnerDashboard(): Result<PartnerDashboardData> =
-        runCatching { api.getPartnerDashboard().toDomain() }
+    /** Real channel-partner analytics. [userId] is an admin-only override to view another partner. */
+    suspend fun getPartnerDashboard(userId: String? = null): Result<PartnerDashboardData> =
+        runCatching { api.getPartnerDashboard(userId).toDomain() }
 
     /** Best-effort: record a property-detail view for analytics. Never surface failure. */
     suspend fun recordPropertyView(propertyId: String): Result<Unit> =

@@ -135,7 +135,7 @@ interface ApiService {
     suspend fun getAgentDashboard(@Query("user_id") userId: String? = null): AgentDashboardResponseDto
 
     @GET("dashboard/partner")
-    suspend fun getPartnerDashboard(): PartnerDashboardResponseDto
+    suspend fun getPartnerDashboard(@Query("user_id") userId: String? = null): PartnerDashboardResponseDto
 
     // ── Bookings ────────────────────────────────────────────────────────────
     @GET("bookings")

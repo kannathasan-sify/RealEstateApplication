@@ -595,15 +595,17 @@ async def agent_dashboard(
 
 @router.get("/partner", response_model=PartnerDashboardResponse, summary="Channel partner analytics")
 async def partner_dashboard(
+    user_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     supabase           = Depends(get_supabase),
 ):
     """
     Channel-partner analytics: referral funnel, conversion, commission payouts, pipeline.
     Self-scoped to the caller (their own referrals/commissions), so any authenticated user may
-    call it; a non-partner simply sees an empty state.
+    call it; a non-partner simply sees an empty state. Admins may pass ?user_id= to view a
+    specific channel partner (partner-wise filter on the admin console).
     """
-    uid = current_user["id"]
+    uid = _resolve_uid(current_user, user_id)
     now = datetime.now(timezone.utc)
     month_start = _month_start(now)
 
