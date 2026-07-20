@@ -3,7 +3,9 @@ package com.realestate.app.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.realestate.app.BuildConfig
+import com.realestate.app.data.mock.AdMockData
 import com.realestate.app.data.mock.MockData
+import com.realestate.app.data.models.HomeAd
 import com.realestate.app.data.models.Property
 import com.realestate.app.data.models.TamilNaduData
 import com.realestate.app.data.repository.PropertyRepository
@@ -53,6 +55,10 @@ class HomeViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    /** Ranked home advertisements from the server-side Ad Ranking Engine (GET /ads/home). */
+    private val _homeAds = MutableStateFlow<List<HomeAd>>(emptyList())
+    val homeAds: StateFlow<List<HomeAd>> = _homeAds.asStateFlow()
+
     init {
         loadHome("All TN")
         viewModelScope.launch {
@@ -76,6 +82,8 @@ class HomeViewModel @Inject constructor(
                 selectedDistrict = district,
                 error            = null,
             )
+
+            loadHomeAds(district)
 
             val districtFilter = if (district == "All TN") null else district
 
@@ -121,6 +129,32 @@ class HomeViewModel @Inject constructor(
     /** Called when user picks a district from the top-bar bottom-sheet. */
     fun selectDistrict(district: String) {
         loadHome(district)
+    }
+
+    // ── Ranked home ads ─────────────────────────────────────────────────────────
+
+    /** Load the ranked ad feed for the current district (non-critical; failures are ignored). */
+    fun loadHomeAds(district: String = _uiState.value.selectedDistrict) {
+        viewModelScope.launch {
+            if (BuildConfig.USE_MOCK_DATA) {
+                _homeAds.value = AdMockData.homeAds
+            } else {
+                val districtFilter = if (district == "All TN") null else district
+                repo.getHomeAds(district = districtFilter, listingType = "rent", limit = 10)
+                    .onSuccess { _homeAds.value = it }
+            }
+        }
+    }
+
+    /** Fire-and-forget engagement signals fed back into the ranking engine. */
+    fun recordAdImpression(adId: String) = viewModelScope.launch { repo.adImpression(adId) }.let {}
+    fun recordAdClick(adId: String) = viewModelScope.launch { repo.adClick(adId) }.let {}
+    fun reportAd(adId: String) = viewModelScope.launch { repo.adReport(adId, "reported from home") }.let {}
+
+    /** Hide an ad: drop it locally for instant feedback, then persist so it stays hidden. */
+    fun hideAd(adId: String) {
+        _homeAds.value = _homeAds.value.filterNot { it.adId == adId }
+        viewModelScope.launch { repo.adHide(adId) }
     }
 
     // ── Live Search ───────────────────────────────────────────────────────────

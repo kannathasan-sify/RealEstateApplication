@@ -20,6 +20,7 @@ from app.routers import support
 from app.routers import discussions
 from app.routers import property_leads
 from app.routers import dashboard
+from app.routers import ads_engine
 
 
 @asynccontextmanager
@@ -70,6 +71,7 @@ app.include_router(support.router,          prefix=f"{API_PREFIX}/support",     
 app.include_router(discussions.router,      prefix=f"{API_PREFIX}",                 tags=["Discussions"])
 app.include_router(property_leads.router,   prefix=f"{API_PREFIX}",                 tags=["Property Leads"])
 app.include_router(dashboard.router,        prefix=f"{API_PREFIX}/dashboard",       tags=["Dashboards"])
+app.include_router(ads_engine.router,       prefix=f"{API_PREFIX}/ads",             tags=["Ad Engine"])
 
 
 

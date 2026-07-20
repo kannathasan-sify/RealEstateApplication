@@ -2,6 +2,7 @@ package com.realestate.app.data.repository
 
 import android.content.Context
 import android.net.Uri
+import com.realestate.app.data.api.AdActionRequestDto
 import com.realestate.app.data.api.AdminPayment
 import com.realestate.app.data.api.AdminStats
 import com.realestate.app.data.api.ApiService
@@ -238,6 +239,30 @@ class PropertyRepository @Inject constructor(
     /** Real channel-partner analytics. [userId] is an admin-only override to view another partner. */
     suspend fun getPartnerDashboard(userId: String? = null): Result<PartnerDashboardData> =
         runCatching { api.getPartnerDashboard(userId).toDomain() }
+
+    // ── Ad Ranking Engine ───────────────────────────────────────────────────────
+
+    /** Ranked, sponsored-capped home ad feed from the server-side engine. */
+    suspend fun getHomeAds(
+        district: String? = null,
+        listingType: String? = null,
+        limit: Int = 10,
+    ): Result<List<HomeAd>> = runCatching {
+        api.getHomeAds(district = district, listingType = listingType, limit = limit)
+            .map { it.toDomain() }
+    }
+
+    suspend fun adImpression(adId: String): Result<Unit> =
+        runCatching { api.adImpression(AdActionRequestDto(adId)); Unit }
+
+    suspend fun adClick(adId: String): Result<Unit> =
+        runCatching { api.adClick(AdActionRequestDto(adId)); Unit }
+
+    suspend fun adHide(adId: String, reason: String? = null): Result<Unit> =
+        runCatching { api.adHide(AdActionRequestDto(adId, reason)); Unit }
+
+    suspend fun adReport(adId: String, reason: String? = null): Result<Unit> =
+        runCatching { api.adReport(AdActionRequestDto(adId, reason)); Unit }
 
     /** Best-effort: record a property-detail view for analytics. Never surface failure. */
     suspend fun recordPropertyView(propertyId: String): Result<Unit> =

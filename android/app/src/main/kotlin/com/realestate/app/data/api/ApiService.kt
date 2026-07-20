@@ -137,6 +137,34 @@ interface ApiService {
     @GET("dashboard/partner")
     suspend fun getPartnerDashboard(@Query("user_id") userId: String? = null): PartnerDashboardResponseDto
 
+    // ── Ad Ranking Engine ─────────────────────────────────────────────────────
+    @GET("ads/home")
+    suspend fun getHomeAds(
+        @Query("district") district: String? = null,
+        @Query("listing_type") listingType: String? = null,
+        @Query("property_type") propertyType: String? = null,
+        @Query("budget_min") budgetMin: Double? = null,
+        @Query("budget_max") budgetMax: Double? = null,
+        @Query("lat") lat: Double? = null,
+        @Query("lng") lng: Double? = null,
+        @Query("limit") limit: Int = 10,
+    ): List<RankedAdDto>
+
+    @POST("ads/impression")
+    suspend fun adImpression(@Body body: AdActionRequestDto)
+
+    @POST("ads/click")
+    suspend fun adClick(@Body body: AdActionRequestDto)
+
+    @POST("ads/conversion")
+    suspend fun adConversion(@Body body: AdActionRequestDto)
+
+    @POST("ads/hide")
+    suspend fun adHide(@Body body: AdActionRequestDto)
+
+    @POST("ads/report")
+    suspend fun adReport(@Body body: AdActionRequestDto)
+
     // ── Bookings ────────────────────────────────────────────────────────────
     @GET("bookings")
     suspend fun getBookings(): List<Booking>

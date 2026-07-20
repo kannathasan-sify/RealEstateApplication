@@ -538,6 +538,7 @@ fun HomeScreen(
 ) {
     val state       by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val homeAds     by viewModel.homeAds.collectAsState()
 
     val showSearchResults = searchQuery.isNotBlank() &&
             (state.searchResults.isNotEmpty() || state.isSearching)
@@ -629,52 +630,50 @@ fun HomeScreen(
                 }
 
 
-                // 2. Advertisement banner (horizontal, up to 20)
+                // 2. Advertisement feed — ranked server-side by the Ad Ranking Engine
+                //    (multi-factor AI score, 30% sponsored cap, labelled paid ads + CTAs).
                 item {
-                    AdBannerSection(
-                        ads             = mockAdBanners,
-                        userDistrict    = state.selectedDistrict,
-                        userListingType = "rent",   // TODO: track last-browsed type in HomeViewModel
-                        userId          = com.realestate.app.data.mock.MockData.currentUser.id,
-                        onCtaClick = { ctaUrl ->
+                    HomeAdFeed(
+                        ads = homeAds,
+                        onImpression = { adId -> viewModel.recordAdImpression(adId) },
+                        onHide = { adId -> viewModel.hideAd(adId) },
+                        onAdClick = { ad ->
+                            viewModel.recordAdClick(ad.adId)
+                            val target = ad.ctaTarget
                             try {
-                                val uri = android.net.Uri.parse(ctaUrl)
-                                when (uri.scheme) {
-                                    "nestx" -> when (uri.host) {
-                                        "property_list" -> {
-                                            val listingType =
-                                                uri.getQueryParameter("listing_type") ?: "rent"
-                                            val wc = uri.getQueryParameter("work_category")
-                                            onCategoryClick(listingType, state.selectedDistrict, wc)
-                                        }
-                                        "post_ad" -> {
-                                            onPostAdClick()
-                                        }
-                                        else -> { /* unknown deep-link host — silently ignore */ }
-                                    }
-                                    "http", "https" -> {
-                                        val intent = android.content.Intent(
-                                            android.content.Intent.ACTION_VIEW, uri
+                                when {
+                                    target.isNullOrBlank() -> { /* no target */ }
+                                    target.startsWith("http") -> {
+                                        context.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse(target),
+                                            ),
                                         )
-                                        context.startActivity(intent)
                                     }
-                                    else -> { /* unsupported scheme — silently ignore */ }
+                                    ad.cta.key == "call_owner" || ad.cta.key == "get_legal_verification" -> {
+                                        context.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_DIAL,
+                                                android.net.Uri.parse("tel:$target"),
+                                            ),
+                                        )
+                                    }
+                                    target.startsWith("nestx://") -> {
+                                        val uri = android.net.Uri.parse(target)
+                                        if (uri.host == "property_list") {
+                                            onCategoryClick(
+                                                uri.getQueryParameter("listing_type") ?: "rent",
+                                                state.selectedDistrict,
+                                                uri.getQueryParameter("work_category"),
+                                            )
+                                        }
+                                    }
+                                    else -> { /* unhandled target — ignore */ }
                                 }
                             } catch (e: Exception) {
-                                // No browser / handler installed — swallow to avoid crash
+                                // No handler installed — swallow to avoid crash
                             }
-                        },
-                        onInterestClick = { adId, note ->
-                            // Resolve mock user and persist interest
-                            val mockUser = com.realestate.app.data.mock.MockData.currentUser
-                            val ad = mockAdBanners.firstOrNull { it.id == adId }
-                            if (ad != null) {
-                                com.realestate.app.data.repository.AdInterestRepository
-                                    .saveInterest(ad = ad, user = mockUser, note = note)
-                            }
-                            // TODO (production): inject HomeViewModel, call
-                            //   viewModel.registerAdInterest(adId, note)
-                            //   which POSTs to /api/v1/ads/{adId}/interests
                         },
                     )
                 }
