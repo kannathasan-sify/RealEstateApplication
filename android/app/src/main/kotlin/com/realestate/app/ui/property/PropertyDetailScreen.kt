@@ -3,6 +3,11 @@ package com.realestate.app.ui.property
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -60,9 +65,9 @@ fun PropertyDetailScreen(
 
     when (val s = state) {
         is PropertyDetailUiState.Loading ->
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = NestXBlue)
-            }
+            // Skeleton mirroring the real detail layout (260dp hero + text blocks),
+            // so the screen paints instantly and content swaps in without a jump.
+            PropertyDetailSkeleton()
         is PropertyDetailUiState.Error ->
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(s.message)
@@ -1417,5 +1422,103 @@ private fun buildEnquiryMessage(property: Property, buyerName: String?): String 
         if (property.referenceId.isNotBlank()) append("🔖 Ref: ${property.referenceId}\n")
         append("\nPlease share more details.")
         if (!buyerName.isNullOrBlank()) append("\n\n— $buyerName")
+    }
+}
+
+
+/**
+ * Shimmer placeholder for the property detail screen. Mirrors the real layout — 260dp hero
+ * image, price/title/location lines, a stats row and description lines — so the content
+ * swaps in without a layout jump, instead of blocking on a spinner.
+ */
+@Composable
+private fun PropertyDetailSkeleton() {
+    val transition = rememberInfiniteTransition(label = "detailSkeleton")
+    val alpha by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.6f,
+        animationSpec = infiniteRepeatable(tween(750), RepeatMode.Reverse),
+        label = "alpha",
+    )
+    val block = BorderColor.copy(alpha = alpha)
+
+    Column(Modifier.fillMaxSize().background(BackgroundWhite)) {
+        // Hero image (matches the 260dp carousel)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .background(block),
+        )
+
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            // Price
+            Box(
+                Modifier
+                    .fillMaxWidth(0.45f)
+                    .height(22.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(block),
+            )
+            // Title
+            Box(
+                Modifier
+                    .fillMaxWidth(0.85f)
+                    .height(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(block),
+            )
+            // Location
+            Box(
+                Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(block),
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            // Stats row (beds / baths / area)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(3) {
+                    Box(
+                        Modifier
+                            .width(76.dp)
+                            .height(30.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(block),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // Description lines
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(block),
+            )
+            Box(
+                Modifier
+                    .fillMaxWidth(0.9f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(block),
+            )
+            Box(
+                Modifier
+                    .fillMaxWidth(0.7f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(block),
+            )
+        }
     }
 }

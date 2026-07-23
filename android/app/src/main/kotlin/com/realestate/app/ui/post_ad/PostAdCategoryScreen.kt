@@ -1,6 +1,7 @@
 package com.realestate.app.ui.post_ad
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -37,12 +38,12 @@ val adCategories = listOf(
     AdCategory("Maintenance Services",  Icons.Filled.Build,        "Maintenance Services"),
 )
 
-// Same gradient palette as HomeScreen QuickAccessTile
-private val categoryGradients: Map<String, Pair<Color, Color>> = mapOf(
-    "Property for Sale"     to (Color(0xFF1565C0) to Color(0xFF1976D2)),
-    "Property for Rent"     to (Color(0xFF00796B) to Color(0xFF00897B)),
-    "Construction Services" to (Color(0xFFE65100) to Color(0xFFF57C00)),
-    "Maintenance Services"  to (Color(0xFF6A1B9A) to Color(0xFF7B1FA2)),
+// Same tint palette as the HomeScreen category icon row (flat 99acres-style).
+private val categoryTints: Map<String, Color> = mapOf(
+    "Property for Sale"     to Color(0xFF1565C0),
+    "Property for Rent"     to Color(0xFF00897B),
+    "Construction Services" to Color(0xFFF57C00),
+    "Maintenance Services"  to Color(0xFF7B1FA2),
 )
 
 @Composable
@@ -111,15 +112,12 @@ fun PostAdCategoryScreen(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 rowItems.forEach { cat ->
-                    val (gradStart, gradEnd) = categoryGradients[cat.key]
-                        ?: (NestXBlue to NestXBlueDark)
                     PostAdCategoryTile(
-                        icon          = cat.icon,
-                        title         = cat.label,
-                        gradientStart = gradStart,
-                        gradientEnd   = gradEnd,
-                        modifier      = Modifier.weight(1f),
-                        onClick       = {
+                        icon     = cat.icon,
+                        title    = cat.label,
+                        tint     = categoryTints[cat.key] ?: NestXBlue,
+                        modifier = Modifier.weight(1f),
+                        onClick  = {
                             val details = subscription
                             if (details != null && details.currentListingsCount >= details.maxListings) {
                                 showLimitDialog = true
@@ -138,60 +136,54 @@ fun PostAdCategoryScreen(
     }
 }
 
-// ── Gradient tile matching HomeScreen QuickAccessTile ────────────────────────
+// ── Flat tinted-icon tile matching the HomeScreen category row ───────────────
 
 @Composable
 private fun PostAdCategoryTile(
     icon: ImageVector,
     title: String,
-    gradientStart: Color,
-    gradientEnd: Color,
+    tint: Color,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = modifier
-            .height(120.dp)
+            .height(132.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(gradientStart, gradientEnd),
-                )
-            )
+            .background(Color.White)
+            .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
-        contentAlignment = Alignment.TopCenter,
+        contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier            = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
+            modifier            = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Frosted icon circle
+            // Tinted icon square
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.22f)),
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(tint.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector        = icon,
                     contentDescription = title,
-                    tint               = Color.White,
-                    modifier           = Modifier.size(22.dp),
+                    tint               = tint,
+                    modifier           = Modifier.size(28.dp),
                 )
             }
 
-            // Label
+            Spacer(Modifier.height(10.dp))
+
             Text(
                 text       = title,
-                color      = Color.White,
-                fontSize   = 12.sp,
+                color      = TextPrimary,
+                fontSize   = 13.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign  = TextAlign.Center,
-                lineHeight = 15.sp,
+                lineHeight = 16.sp,
                 maxLines   = 2,
                 overflow   = TextOverflow.Ellipsis,
             )

@@ -24,7 +24,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -539,6 +543,7 @@ fun HomeScreen(
     val state       by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val homeAds     by viewModel.homeAds.collectAsState()
+    val adsLoading  by viewModel.adsLoading.collectAsState()
 
     val showSearchResults = searchQuery.isNotBlank() &&
             (state.searchResults.isNotEmpty() || state.isSearching)
@@ -604,17 +609,15 @@ fun HomeScreen(
         Column(modifier = Modifier.fillMaxSize().background(BackgroundWhite)) {
 
             // ── Top bar ──────────────────────────────────────────────────────
-            HomeTopBar(
-                selectedDistrict  = state.selectedDistrict,
-                onDistrictClick   = { showDistrictPicker = true },
-                onFavouritesClick = onFavouritesClick,
-            )
+            HomeTopBar(onPostProperty = onPostAdClick)
 
-            // ── Search bar ───────────────────────────────────────────────────
+            // ── Search bar (compact, with district) ──────────────────────────
             SearchBarRow(
-                query    = searchQuery,
-                onChange = viewModel::onSearchQueryChange,
-                onClear  = viewModel::clearSearch,
+                query           = searchQuery,
+                onChange        = viewModel::onSearchQueryChange,
+                onClear         = viewModel::clearSearch,
+                district        = state.selectedDistrict,
+                onDistrictClick = { showDistrictPicker = true },
             )
 
             // ── Main scrollable feed ─────────────────────────────────────────
@@ -635,52 +638,23 @@ fun HomeScreen(
                 item {
                     HomeAdFeed(
                         ads = homeAds,
+                        isLoading = adsLoading,
                         onImpression = { adId -> viewModel.recordAdImpression(adId) },
+                        onClickTracked = { adId -> viewModel.recordAdClick(adId) },
                         onHide = { adId -> viewModel.hideAd(adId) },
-                        onAdClick = { ad ->
-                            viewModel.recordAdClick(ad.adId)
-                            val target = ad.ctaTarget
-                            try {
-                                when {
-                                    target.isNullOrBlank() -> { /* no target */ }
-                                    target.startsWith("http") -> {
-                                        context.startActivity(
-                                            android.content.Intent(
-                                                android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse(target),
-                                            ),
-                                        )
-                                    }
-                                    ad.cta.key == "call_owner" || ad.cta.key == "get_legal_verification" -> {
-                                        context.startActivity(
-                                            android.content.Intent(
-                                                android.content.Intent.ACTION_DIAL,
-                                                android.net.Uri.parse("tel:$target"),
-                                            ),
-                                        )
-                                    }
-                                    target.startsWith("nestx://") -> {
-                                        val uri = android.net.Uri.parse(target)
-                                        if (uri.host == "property_list") {
-                                            onCategoryClick(
-                                                uri.getQueryParameter("listing_type") ?: "rent",
-                                                state.selectedDistrict,
-                                                uri.getQueryParameter("work_category"),
-                                            )
-                                        }
-                                    }
-                                    else -> { /* unhandled target — ignore */ }
-                                }
-                            } catch (e: Exception) {
-                                // No handler installed — swallow to avoid crash
-                            }
+                        onReport = { adId -> viewModel.reportAd(adId) },
+                        onCtaAction = { ad ->
+                            handleAdTarget(ad, context, state.selectedDistrict, onCategoryClick)
                         },
                     )
                 }
 
                 item { Spacer(Modifier.height(80.dp)) }
 
-                // Loading
+                // ── DISABLED: home loading spinner ───────────────────────────
+                // Home now only renders the ad feed, which handles its own state,
+                // so the full-screen loading indicator is hidden.
+                /*
                 if (state.isLoading) {
                     item {
                         Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
@@ -688,6 +662,7 @@ fun HomeScreen(
                         }
                     }
                 }
+                */
             }
         }
 
@@ -710,83 +685,57 @@ fun HomeScreen(
 // ── Top Bar ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun HomeTopBar(
-    selectedDistrict: String,
-    onDistrictClick: () -> Unit,
-    onFavouritesClick: () -> Unit,
-) {
+private fun HomeTopBar(onPostProperty: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(NestXBlue)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .background(Color.White)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Logo + App name
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // White chip so the navy+gold monogram stays visible on the blue header
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .background(Color.White, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter            = painterResource(id = R.drawable.ic_dnestx_logo),
-                    contentDescription = "DNestX",
-                    modifier           = Modifier.size(26.dp),
-                    tint               = Color.Unspecified,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "DNestX",
-                color         = Color.White,
-                fontWeight    = FontWeight.Bold,
-                fontSize      = 21.sp,
-                letterSpacing = (-0.3).sp,
-            )
-        }
+        // Logo + name (on white — no chip needed)
+        Icon(
+            painter            = painterResource(id = R.drawable.ic_dnestx_logo),
+            contentDescription = "DNestX",
+            modifier           = Modifier.size(30.dp),
+            tint               = Color.Unspecified,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "DNestX",
+            color         = NestXBlue,
+            fontWeight    = FontWeight.Bold,
+            fontSize      = 20.sp,
+            letterSpacing = (-0.3).sp,
+        )
 
         Spacer(Modifier.weight(1f))
 
-        // ── District selector chip ────────────────────────────────────────
+        // Post Property button (99acres-style)
         Surface(
             shape    = RoundedCornerShape(20.dp),
-            color    = NestXBlueDark,
-            modifier = Modifier.clickable(onClick = onDistrictClick),
+            color    = NestXBlue,
+            modifier = Modifier.clickable(onClick = onPostProperty),
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Default.LocationOn,
-                    contentDescription = null,
-                    tint     = Color.White,
-                    modifier = Modifier.size(15.dp),
-                )
+                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text(
-                    text       = selectedDistrict,
-                    color      = Color.White,
-                    fontSize   = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-                Icon(
-                    Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint     = Color.White,
-                    modifier = Modifier.size(18.dp),
-                )
+                Text("Post Property", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
 
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(2.dp))
 
-        // Favourites heart icon
-        IconButton(onClick = onFavouritesClick) {
-            Icon(Icons.Outlined.FavoriteBorder, "Favourites", tint = Color.White)
+        // Notification bell — display only for now (feature to be wired later).
+        IconButton(onClick = { /* TODO: open notifications */ }) {
+            Icon(
+                Icons.Filled.NotificationsNone,
+                contentDescription = "Notifications",
+                tint = TextPrimary,
+            )
         }
     }
 }
@@ -876,43 +825,84 @@ private fun DistrictPickerSheet(
 
 // ── Search Bar ────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchBarRow(
     query: String,
     onChange: (String) -> Unit,
     onClear: () -> Unit,
+    district: String,
+    onDistrictClick: () -> Unit,
 ) {
-    OutlinedTextField(
-        value         = query,
-        onValueChange = onChange,
-        modifier      = Modifier
+    Row(
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        placeholder = {
+            .background(Color.White)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // District chip (location lives with the search, 99acres-style)
+        Row(
+            modifier = Modifier
+                .height(42.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(SurfaceGray)
+                .clickable(onClick = onDistrictClick)
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.LocationOn, contentDescription = null, tint = NestXBlue, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(3.dp))
             Text(
-                if (query.isBlank()) "Search properties, grounds, stays…" else "",
-                color = TextSecondary,
+                district,
+                color = TextPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 88.dp),
             )
-        },
-        leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary)
-        },
-        trailingIcon = if (query.isNotBlank()) {
-            {
-                IconButton(onClick = onClear) {
-                    Icon(Icons.Default.Clear, "Clear", tint = TextSecondary)
+            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+        }
+
+        // Compact search field
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .height(42.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(SurfaceGray)
+                .border(1.dp, BorderColor, RoundedCornerShape(10.dp))
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Box(Modifier.weight(1f)) {
+                if (query.isBlank()) {
+                    Text("Search…", color = TextSecondary, fontSize = 13.sp, maxLines = 1)
                 }
+                BasicTextField(
+                    value = query,
+                    onValueChange = onChange,
+                    singleLine = true,
+                    textStyle = TextStyle(fontSize = 13.sp, color = TextPrimary),
+                    cursorBrush = SolidColor(NestXBlue),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-        } else null,
-        singleLine = true,
-        shape  = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor   = NestXBlue,
-            unfocusedBorderColor = BorderColor,
-            cursorColor          = NestXBlue,
-        ),
-    )
+            if (query.isNotBlank()) {
+                Icon(
+                    Icons.Default.Clear,
+                    contentDescription = "Clear",
+                    tint = TextSecondary,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable(onClick = onClear),
+                )
+            }
+        }
+    }
 }
 
 // ── Quick-Access Slider (Buy / Rent / Construction / Maintenance) ──────────
@@ -926,79 +916,55 @@ private fun SearchBarRow(
 private fun QuickAccessSlider(
     onTileClick: (listingType: String, workCategory: String?) -> Unit,
 ) {
-    data class QuickTile(
+    data class Cat(
         val icon: androidx.compose.ui.graphics.vector.ImageVector,
-        val title: String,
-        val subtitle: String,
+        val label: String,
         val listingType: String,
         val workCategory: String?,
-        val gradientStart: Color,
-        val gradientEnd: Color,
+        val tint: Color,
     )
 
-    val tiles = listOf(
-        QuickTile(
-            icon         = Icons.Filled.Home,
-            title        = "Buy",
-            subtitle     = "For Sale Property",
-            listingType  = "sale",
-            workCategory = null,
-            gradientStart = Color(0xFF1565C0),
-            gradientEnd   = Color(0xFF1976D2),
-        ),
-        QuickTile(
-            icon         = Icons.Filled.VpnKey,
-            title        = "Rent",
-            subtitle     = "Property For Rent",
-            listingType  = "rent",
-            workCategory = null,
-            gradientStart = Color(0xFF00796B),
-            gradientEnd   = Color(0xFF00897B),
-        ),
-        QuickTile(
-            icon         = Icons.Filled.Construction,
-            title        = "Construction",
-            subtitle     = "Build your Property",
-            listingType  = "contractor",
-            workCategory = "construction",
-            gradientStart = Color(0xFFE65100),
-            gradientEnd   = Color(0xFFF57C00),
-        ),
-        QuickTile(
-            icon         = Icons.Filled.Build,
-            title        = "Maintenance",
-            subtitle     = "Maintain Your Property",
-            listingType  = "contractor",
-            workCategory = "maintenance",
-            gradientStart = Color(0xFF6A1B9A),
-            gradientEnd   = Color(0xFF7B1FA2),
-        ),
+    // Flat icon row (99acres-style): small tinted icon + label, evenly spaced.
+    val cats = listOf(
+        Cat(Icons.Filled.Home,         "Buy",          "sale",       null,           Color(0xFF1565C0)),
+        Cat(Icons.Filled.VpnKey,       "Rent",         "rent",       null,           Color(0xFF00897B)),
+        Cat(Icons.Filled.Construction, "Construction", "contractor", "construction", Color(0xFFF57C00)),
+        Cat(Icons.Filled.Build,        "Maintenance",  "contractor", "maintenance",  Color(0xFF7B1FA2)),
     )
 
-    Column(modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) {
-        Text(
-            text       = "What are you looking for?",
-            fontSize   = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color      = TextPrimary,
-            modifier   = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier              = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            tiles.forEach { tile ->
-                QuickAccessTile(
-                    icon          = tile.icon,
-                    title         = tile.title,
-                    subtitle      = tile.subtitle,
-                    gradientStart = tile.gradientStart,
-                    gradientEnd   = tile.gradientEnd,
-                    modifier      = Modifier.weight(1f),
-                    onClick       = { onTileClick(tile.listingType, tile.workCategory) },
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        cats.forEach { c ->
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onTileClick(c.listingType, c.workCategory) }
+                    .padding(vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(c.tint.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(c.icon, contentDescription = c.label, tint = c.tint, modifier = Modifier.size(26.dp))
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    c.label,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
@@ -1717,4 +1683,46 @@ private fun formatSearchPrice(price: Long): String = when {
     price >= 10_000_000L -> "%.1fCr".format(price / 10_000_000.0)
     price >= 100_000L    -> "%.0fL".format(price / 100_000.0)
     else                 -> "%,d".format(price)
+}
+
+
+/**
+ * Handle an ad CTA target: open a URL, dial a number (call/legal CTAs), or follow a
+ * nestx:// deep-link. Best-effort — swallows failures so a missing handler never crashes.
+ */
+private fun handleAdTarget(
+    ad: com.realestate.app.data.models.HomeAd,
+    context: android.content.Context,
+    selectedDistrict: String,
+    onCategoryClick: (String, String, String?) -> Unit,
+) {
+    val target = ad.ctaTarget
+    try {
+        when {
+            target.isNullOrBlank() -> { /* no target */ }
+            target.startsWith("http") -> {
+                context.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(target)),
+                )
+            }
+            ad.cta.key == "call_owner" || ad.cta.key == "get_legal_verification" -> {
+                context.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + target)),
+                )
+            }
+            target.startsWith("nestx://") -> {
+                val uri = android.net.Uri.parse(target)
+                if (uri.host == "property_list") {
+                    onCategoryClick(
+                        uri.getQueryParameter("listing_type") ?: "rent",
+                        selectedDistrict,
+                        uri.getQueryParameter("work_category"),
+                    )
+                }
+            }
+            else -> { /* unhandled target — ignore */ }
+        }
+    } catch (e: Exception) {
+        // No handler installed — swallow to avoid crash
+    }
 }

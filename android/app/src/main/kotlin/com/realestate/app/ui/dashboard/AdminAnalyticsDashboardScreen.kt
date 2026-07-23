@@ -62,7 +62,8 @@ fun AdminAnalyticsDashboardScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        if (scope == AdminScope.PLATFORM) viewModel.load() else viewModel.retrySelected()
+                        if (scope == AdminScope.PLATFORM) viewModel.load(force = true)
+                        else viewModel.retrySelected()
                     }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = NestXBlue)
                     }
@@ -88,7 +89,7 @@ fun AdminAnalyticsDashboardScreen(
                         "Platform revenue, growth, approvals and fraud monitoring.",
                         fontSize = 13.sp, color = TextSecondary,
                     )
-                    DashboardInlineState(platform, onRetry = viewModel::load) { data ->
+                    DashboardInlineState(platform, onRetry = { viewModel.load(force = true) }) { data ->
                         KpiTileGrid(data.tiles)
                         BarChartCard("Revenue by stream", data.revenueByStream)
                         LineChartCard("User growth", data.userGrowth)

@@ -1,5 +1,10 @@
 package com.realestate.app.ui.property
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -259,8 +264,14 @@ fun PropertyListScreen(
 
                 when (val s = state) {
                     is PropertyUiState.Loading -> {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = NestXBlue)
+                        // Skeleton list instead of a blocking spinner: same padding,
+                        // spacing and card size as the real results, so the layout
+                        // doesn't jump when they arrive.
+                        LazyColumn(
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(5) { PropertyCardSkeleton() }
                         }
                     }
                     is PropertyUiState.Success -> {
@@ -343,7 +354,9 @@ fun PropertyListScreen(
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
-                                    items(filteredProperties) { prop ->
+                                    // Stable keys let Compose reuse rows instead of
+                                    // re-composing the whole list on every change.
+                                    items(filteredProperties, key = { it.id }) { prop ->
                                         PropertyCard(
                                             property = prop,
                                             compact  = false,
@@ -521,6 +534,66 @@ fun SubCategoryTabBar(
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                     color      = if (isSelected) Color.White else TextPrimary,
                     modifier   = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                )
+            }
+        }
+    }
+}
+
+
+/**
+ * Shimmer placeholder mirroring [PropertyCard] (non-compact): 180dp image block plus three
+ * text lines. Sized to match the real card so results swap in without a layout jump.
+ */
+@Composable
+private fun PropertyCardSkeleton() {
+    val transition = rememberInfiniteTransition(label = "propertySkeleton")
+    val alpha by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.6f,
+        animationSpec = infiniteRepeatable(tween(750), RepeatMode.Reverse),
+        label = "alpha",
+    )
+    val block = BorderColor.copy(alpha = alpha)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = BackgroundWhite),
+    ) {
+        Column {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                    .background(block),
+            )
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.55f)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(block),
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(block),
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.4f)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(block),
                 )
             }
         }

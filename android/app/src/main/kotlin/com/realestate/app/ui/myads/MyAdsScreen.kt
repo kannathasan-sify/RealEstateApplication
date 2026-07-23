@@ -146,9 +146,9 @@ fun MyAdsScreen(
             // ── Body ─────────────────────────────────────────────────────────
             when {
                 state.isLoading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = NestXBlue)
-                    }
+                    // Skeleton rows instead of a blocking spinner — the screen paints
+                    // instantly and the real ads swap in without a layout jump.
+                    com.realestate.app.ui.components.ListSkeleton(count = 5)
                 }
 
                 properties.isEmpty() && !state.isLoading -> {

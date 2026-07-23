@@ -16,7 +16,7 @@ fun AgentDashboardScreen(
         subtitle = "Portfolio, lead pipeline and commission for Priya Sharma.",
         onBack = onBack,
         state = state,
-        onRefresh = viewModel::load,
+        onRefresh = { viewModel.load(force = true) },
     ) { data ->
         KpiTileGrid(data.tiles)
         BarChartCard("Lead pipeline by stage", data.leadPipeline)

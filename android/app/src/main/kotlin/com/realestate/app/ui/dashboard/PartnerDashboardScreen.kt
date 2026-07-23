@@ -16,7 +16,7 @@ fun PartnerDashboardScreen(
         subtitle = "Referral funnel, conversions and commission payouts.",
         onBack = onBack,
         state = state,
-        onRefresh = viewModel::load,
+        onRefresh = { viewModel.load(force = true) },
     ) { data ->
         KpiTileGrid(data.tiles)
         BarChartCard("Referral funnel", data.referralFunnel)

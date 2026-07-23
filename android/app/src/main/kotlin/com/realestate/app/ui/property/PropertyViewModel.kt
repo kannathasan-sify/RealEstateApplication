@@ -8,6 +8,7 @@ import com.realestate.app.data.models.Property
 import com.realestate.app.data.models.PropertyFilterState
 import com.realestate.app.data.repository.PropertyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -86,11 +87,18 @@ class PropertyViewModel @Inject constructor(
      * Mock mode  → filter [MockData.approvedProperties] client-side.
      * API mode   → call [PropertyRepository.listProperties] with filter params.
      */
+    // Freshness guard so returning to the screen (ON_RESUME) doesn't refetch an
+    // identical query that already succeeded moments ago.
+    private val listFreshWindowMs = 60_000L
+    private var lastLoadKey: String? = null
+    private var lastLoadAt = 0L
+
     fun loadProperties(
         district: String = _selectedDistrict.value,
         listingType: String = _currentFilter.value.listingType,
         filter: PropertyFilterState? = null,
         workCategory: String? = null,
+        force: Boolean = false,
     ) {
         val effectiveFilter = filter ?: _currentFilter.value.copy(
             district = if (district == "All TN") "" else district,
@@ -99,6 +107,18 @@ class PropertyViewModel @Inject constructor(
         )
         _selectedDistrict.value = district
         _currentFilter.value = effectiveFilter
+
+        // Same query + already loaded successfully + still fresh → nothing to do.
+        // (An explicit `filter` or `force` always reloads; an Error state always retries.)
+        val loadKey = effectiveFilter.toString()
+        val now = System.currentTimeMillis()
+        if (!force && filter == null &&
+            loadKey == lastLoadKey &&
+            _listState.value is PropertyUiState.Success &&
+            now - lastLoadAt < listFreshWindowMs
+        ) return
+        lastLoadKey = loadKey
+        lastLoadAt = now
 
         viewModelScope.launch {
             _listState.value = PropertyUiState.Loading
@@ -253,7 +273,20 @@ class PropertyViewModel @Inject constructor(
 
     fun loadPropertyDetail(id: String) {
         viewModelScope.launch {
-            _detailState.value = PropertyDetailUiState.Loading
+            // Re-opening the same property keeps the existing content on screen and
+            // refreshes underneath — no skeleton flash on back-navigation.
+            val existing = _detailState.value
+            val sameProperty =
+                existing is PropertyDetailUiState.Success && existing.property.id == id
+            if (!sameProperty) {
+                // Instant paint: if the user just saw this property in a list, the
+                // repository already has it cached — show it now and refresh below.
+                val cached = repo.cachedProperty(id)
+                _detailState.value =
+                    if (cached != null) PropertyDetailUiState.Success(cached, emptyList())
+                    else PropertyDetailUiState.Loading
+            }
+
             if (BuildConfig.USE_MOCK_DATA) {
                 val property = MockData.getById(id)
                 if (property != null) {
@@ -269,14 +302,28 @@ class PropertyViewModel @Inject constructor(
             } else {
                 // Fire-and-forget: record this detail open for owner view analytics.
                 viewModelScope.launch { repo.recordPropertyView(id) }
-                val propResult = repo.getProperty(id)
-                val simResult = repo.getSimilar(id)
-                propResult.fold(
+
+                // "Similar properties" sits below the fold, so it must not gate the main
+                // content. Kick it off concurrently and paint as soon as the property
+                // itself arrives — 2 sequential round-trips become 1 before first paint.
+                val similarDeferred = async { repo.getSimilar(id) }
+
+                repo.getProperty(id).fold(
                     onSuccess = { property ->
-                        val similar = simResult.getOrDefault(emptyList())
-                        _detailState.value = PropertyDetailUiState.Success(property, similar)
+                        // First paint: main content immediately, similar fills in after.
+                        _detailState.value = PropertyDetailUiState.Success(property, emptyList())
+
+                        val similar = similarDeferred.await().getOrDefault(emptyList())
+                        // Only apply if the user hasn't navigated to another property.
+                        val current = _detailState.value
+                        if (current is PropertyDetailUiState.Success &&
+                            current.property.id == property.id
+                        ) {
+                            _detailState.value = PropertyDetailUiState.Success(property, similar)
+                        }
                     },
                     onFailure = { e ->
+                        similarDeferred.cancel()
                         _detailState.value =
                             PropertyDetailUiState.Error(e.message ?: "Property not found")
                     },

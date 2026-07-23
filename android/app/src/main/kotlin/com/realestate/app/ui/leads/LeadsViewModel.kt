@@ -7,6 +7,7 @@ import com.realestate.app.data.mock.MockData
 import com.realestate.app.data.models.PropertyLead
 import com.realestate.app.data.repository.PropertyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,9 @@ import javax.inject.Inject
  * Mirrors the MyBookings buyer/owner split. Follows the mock-data gate so it is fully
  * usable in debug without a backend.
  */
+/** How long fetched enquiries stay fresh before a reload is allowed. */
+private const val LEADS_FRESH_MS = 60_000L
+
 @HiltViewModel
 class LeadsViewModel @Inject constructor(
     private val repo: PropertyRepository,
@@ -35,11 +39,20 @@ class LeadsViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    /** Enquiries are user-scoped (never disk-cached); this only prevents the same screen
+     *  session refetching within the window. */
+    private var lastLoadedAt = 0L
+
     init { load() }
 
-    fun load() {
+    fun load(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val hasData = _myLeads.value.isNotEmpty() || _receivedLeads.value.isNotEmpty()
+        if (!force && hasData && now - lastLoadedAt < LEADS_FRESH_MS) return
+        lastLoadedAt = now
         viewModelScope.launch {
-            _isLoading.value = true
+            // Skeleton only on a cold load — a refresh keeps the current enquiries visible.
+            _isLoading.value = !hasData
             if (BuildConfig.USE_MOCK_DATA) {
                 delay(300)
                 val uid = MockData.currentUser.id
@@ -50,14 +63,12 @@ class LeadsViewModel @Inject constructor(
                     .filter { it.ownerId == uid }
                     .sortedByDescending { it.createdAt }
             } else {
-                repo.getMyLeads().fold(
-                    onSuccess = { _myLeads.value = it },
-                    onFailure = { _myLeads.value = emptyList() },
-                )
-                repo.getReceivedLeads().fold(
-                    onSuccess = { _receivedLeads.value = it },
-                    onFailure = { _receivedLeads.value = emptyList() },
-                )
+                // Both tabs are shown on this screen, so fetch them concurrently —
+                // sequential calls made the user wait for two round-trips.
+                val mine = async { repo.getMyLeads() }
+                val received = async { repo.getReceivedLeads() }
+                _myLeads.value = mine.await().getOrDefault(emptyList())
+                _receivedLeads.value = received.await().getOrDefault(emptyList())
             }
             _isLoading.value = false
         }

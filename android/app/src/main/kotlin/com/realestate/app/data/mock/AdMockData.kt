@@ -71,5 +71,25 @@ object AdMockData {
             rankingReason = "Matches what you browse", displayPosition = 5,
             cta = AdCta.CALL_OWNER, ctaTarget = "9199xxxxxx",
         ),
+        HomeAd(
+            adId = "ad-106", campaignId = "camp-casa", advertiserName = "Casagrand Builder",
+            title = "Casagrand Elite — Villas", subtitle = "Gated community · Chennai OMR",
+            imageUrl = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
+            adType = "construction", category = "builder", priorityLevel = 3,
+            sponsoredStatus = SponsoredStatus.FEATURED, aiScore = 74.2, bidAmount = 240.0,
+            estCtr = 0.06, estConversion = 0.03, revenuePrediction = 14.4,
+            rankingReason = "Near Chennai", displayPosition = 6,
+            cta = AdCta.VISIT_BUILDER, ctaTarget = "https://casagrand.example",
+        ),
+        HomeAd(
+            adId = "ad-107", campaignId = null, advertiserName = "DAC Developers",
+            title = "DAC Smart Homes", subtitle = "Solar-ready · Coimbatore",
+            imageUrl = "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800",
+            adType = "construction", category = "builder", priorityLevel = 3,
+            sponsoredStatus = SponsoredStatus.ORGANIC, aiScore = 61.5, bidAmount = 0.0,
+            estCtr = 0.04, estConversion = 0.02, revenuePrediction = 0.0,
+            rankingReason = "New launch", displayPosition = 7,
+            cta = AdCta.VISIT_BUILDER, ctaTarget = "https://dac.example",
+        ),
     )
 }

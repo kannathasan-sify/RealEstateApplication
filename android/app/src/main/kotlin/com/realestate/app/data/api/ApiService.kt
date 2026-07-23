@@ -143,6 +143,7 @@ interface ApiService {
         @Query("district") district: String? = null,
         @Query("listing_type") listingType: String? = null,
         @Query("property_type") propertyType: String? = null,
+        @Query("ad_type") adType: String? = null,
         @Query("budget_min") budgetMin: Double? = null,
         @Query("budget_max") budgetMax: Double? = null,
         @Query("lat") lat: Double? = null,
@@ -399,8 +400,14 @@ interface ApiService {
     @DELETE("admin/leads/{leadId}")
     suspend fun deleteLeadAdmin(@Path("leadId") leadId: String): Map<String, String>
 
+    /**
+     * The backend replies 204 No Content (empty body), so this MUST NOT declare a non-null
+     * body type — Retrofit would convert the empty body to null and throw
+     * "Response was null but response body type was declared as non-null", making a
+     * successful delete look like a failure.
+     */
     @DELETE("properties/{id}")
-    suspend fun deleteProperty(@Path("id") id: String): Map<String, String>
+    suspend fun deleteProperty(@Path("id") id: String)
 
     // ── Support ──────────────────────────────────────────────────────────────
     @POST("support/tickets")

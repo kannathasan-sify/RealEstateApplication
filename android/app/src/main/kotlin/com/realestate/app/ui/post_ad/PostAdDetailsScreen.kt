@@ -316,12 +316,47 @@ fun PostAdDetailsScreen(
         }
     }
 
+    // ── Wizard state: 0 = Category, 1 = Title & Photos, 2 = Property Details ──
+    var step by remember { mutableStateOf(0) }
+    val stepTitles = listOf("Category", "Title & Photos", "Property Details")
+    val lastStep = stepTitles.lastIndex
+
+    // Sub-categories offered for the chosen category (drives the mandatory check).
+    val subCategoryOptions = when {
+        selectedCategory.contains("Sale", ignoreCase = true) -> saleSubCategories
+        selectedCategory.contains("Rent", ignoreCase = true) -> rentSubCategories
+        selectedCategory.contains("Construction", ignoreCase = true) -> constructionSubCategories
+        selectedCategory.contains("Maintenance", ignoreCase = true) -> maintenanceSubCategories
+        else -> emptyList()
+    }
+    val subCategoryRequired = subCategoryOptions.isNotEmpty()
+
+    // Per-step gate — mandatory fields must be filled before advancing.
+    // Step 1 requires: Category, "Are you an owner or an agent?", Sub-category.
+    // Step 2 requires: Ad Title, min photos.
+    val canProceed = when (step) {
+        0 -> selectedCategory.isNotBlank() &&
+             postedBy.isNotBlank() &&
+             (!subCategoryRequired || subCategory.isNotBlank())
+        1 -> adTitle.isNotBlank() && selectedImages.size >= MIN_IMAGES
+        else -> true
+    }
+    val stepHint = when {
+        step == 0 && selectedCategory.isBlank() -> "Select a category to continue."
+        step == 0 && postedBy.isBlank() -> "Please tell us whether you're an owner or an agent."
+        step == 0 && subCategoryRequired && subCategory.isBlank() -> "Sub-category is required."
+        step == 1 && adTitle.isBlank() -> "Ad title is required."
+        step == 1 && selectedImages.size < MIN_IMAGES -> "Add at least $MIN_IMAGES photos to continue."
+        else -> null
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Ad Details", fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    // Back steps through the wizard first, then leaves the screen.
+                    IconButton(onClick = { if (step > 0) step-- else onBack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -330,20 +365,37 @@ fun PostAdDetailsScreen(
         },
         bottomBar = {
             Surface(shadowElevation = 8.dp) {
-                Button(
-                    onClick = { viewModel.submitAd() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = submitState !is SubmitState.Loading,
-                ) {
-                    if (submitState is SubmitState.Loading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-                    } else {
-                        Text("Post Ad", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                Column(Modifier.padding(16.dp)) {
+                    if (stepHint != null) {
+                        Text(stepHint, fontSize = 12.sp, color = TextSecondary)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (step > 0) {
+                            OutlinedButton(
+                                onClick = { step-- },
+                                modifier = Modifier.weight(1f).height(52.dp),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Text("Back", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        Button(
+                            onClick = { if (step < lastStep) step++ else viewModel.submitAd() },
+                            modifier = Modifier.weight(1f).height(52.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed),
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = canProceed && submitState !is SubmitState.Loading,
+                        ) {
+                            if (submitState is SubmitState.Loading) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                            } else {
+                                Text(
+                                    if (step < lastStep) "Next" else "Post Ad",
+                                    fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -355,9 +407,35 @@ fun PostAdDetailsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            // ── Step progress indicator (compact header block) ───────────────
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    repeat(stepTitles.size) { i ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (i <= step) NestXBlue else BorderColor),
+                        )
+                    }
+                }
+                Text(
+                    "Step ${step + 1} of ${stepTitles.size} · ${stepTitles[step]}",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextSecondary,
+                )
+            }
+
+            // ══ STEP 1: Category ═════════════════════════════════════════════
+            if (step == 0) {
             // ── Category selection ───────────────────────────────────────────
             Text("Category", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Row(
@@ -372,25 +450,24 @@ fun PostAdDetailsScreen(
                 )
                 cats.forEach { (label, icon, key) ->
                     val isSelected = selectedCategory == key
-                    val gradColors = when (key) {
-                        "Property for Sale"     -> listOf(Color(0xFF1565C0), Color(0xFF1976D2))
-                        "Property for Rent"     -> listOf(Color(0xFF00796B), Color(0xFF00897B))
-                        "Construction Services" -> listOf(Color(0xFFE65100), Color(0xFFF57C00))
-                        "Maintenance Services"  -> listOf(Color(0xFF6A1B9A), Color(0xFF7B1FA2))
-                        else                    -> listOf(NestXBlue, NestXBlueDark)
+                    val tint = when (key) {
+                        "Property for Sale"     -> Color(0xFF1565C0)
+                        "Property for Rent"     -> Color(0xFF00897B)
+                        "Construction Services" -> Color(0xFFF57C00)
+                        "Maintenance Services"  -> Color(0xFF7B1FA2)
+                        else                    -> NestXBlue
                     }
 
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(68.dp)
+                            .height(78.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                brush = if (isSelected) {
-                                    Brush.verticalGradient(gradColors)
-                                } else {
-                                    Brush.verticalGradient(listOf(SurfaceGray, SurfaceGray))
-                                }
+                            .background(if (isSelected) tint.copy(alpha = 0.14f) else Color.White)
+                            .border(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) tint else BorderColor,
+                                shape = RoundedCornerShape(12.dp),
                             )
                             .clickable {
                                 val details = subscription
@@ -403,42 +480,50 @@ fun PostAdDetailsScreen(
                                     val pair = resolveRolePair(key)
                                     viewModel.postedBy.value = pair.leftKey
                                 }
-                            }
-                            .then(
-                                if (!isSelected) {
-                                    Modifier.border(1.dp, BorderColor, RoundedCornerShape(12.dp))
-                                } else Modifier
-                            ),
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = label,
-                                modifier = Modifier.size(22.dp),
-                                tint = if (isSelected) Color.White else TextSecondary
-                            )
-                            Spacer(Modifier.height(4.dp))
+                            // Tinted icon square — always coloured (matches the HomeScreen category row).
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(11.dp))
+                                    .background(tint.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = tint,
+                                )
+                            }
+                            Spacer(Modifier.height(5.dp))
                             Text(
                                 text = label,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) Color.White else TextSecondary
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary,
                             )
                         }
                     }
                 }
             }
 
+            }  // ══ end STEP 1 category grid ═════════════════════════════════
+
             if (selectedCategory.isNotBlank()) {
                 val rolePair = remember(selectedCategory) { resolveAdRoleSelectionPair(selectedCategory) }
 
+                // ══ STEP 1 (cont.): Posted-by + Sub-category ═════════════════
+                if (step == 0) {
                 // ── Posted By Role selection ─────────────────────────────────
                 Spacer(Modifier.height(4.dp))
-                Text(rolePair.heading, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                RequiredLabel(rolePair.heading)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -461,18 +546,13 @@ fun PostAdDetailsScreen(
                     }
                 }
 
-                // ── Sub-category selection ───────────────────────────────────
-                val subCategories = when {
-                    selectedCategory.contains("Sale", ignoreCase = true) -> saleSubCategories
-                    selectedCategory.contains("Rent", ignoreCase = true) -> rentSubCategories
-                    selectedCategory.contains("Construction", ignoreCase = true) -> constructionSubCategories
-                    selectedCategory.contains("Maintenance", ignoreCase = true) -> maintenanceSubCategories
-                    else -> emptyList()
-                }
+                // ── Sub-category selection (mandatory) ───────────────────────
+                // Reuses subCategoryOptions so the UI and the Next-gate can't diverge.
+                val subCategories = subCategoryOptions
 
                 if (subCategories.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
-                    Text("Sub-category", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    RequiredLabel("Sub-category")
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -504,9 +584,13 @@ fun PostAdDetailsScreen(
                     }
                 }
 
+                }  // ══ end STEP 1 ══════════════════════════════════════════
+
+                // ══ STEP 2: Title & Photos ══════════════════════════════════
+                if (step == 1) {
                 // ── Ad Title input ───────────────────────────────────────────
                 Spacer(Modifier.height(4.dp))
-                Text("Ad Title", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                RequiredLabel("Ad Title")
                 OutlinedTextField(
                     value = adTitle,
                     onValueChange = { viewModel.title.value = it },
@@ -577,6 +661,10 @@ fun PostAdDetailsScreen(
 
                 HorizontalDivider(color = BorderColor)
 
+                }  // ══ end STEP 2 ══════════════════════════════════════════
+
+                // ══ STEP 3: Property details (category-specific) ════════════
+                if (step == 2) {
                 // ── Category-specific form body ─────────────────────────────────
                 when {
                     selectedCategory.contains("Ground", ignoreCase = true) ->
@@ -595,7 +683,8 @@ fun PostAdDetailsScreen(
                         // Property for Sale / Property for Rent (default)
                         PropertyDetailsForm(viewModel = viewModel, onPickOnMap = onPickOnMap)
                 }
-            } else {
+                }  // ══ end STEP 3 ══════════════════════════════════════════
+            } else if (step == 0) {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
                     contentAlignment = Alignment.Center
@@ -608,15 +697,17 @@ fun PostAdDetailsScreen(
                 }
             }
 
-            // Admin review note
-            Text(
-                text     = "⚠️ Your listing will be reviewed by an admin before it goes live.",
-                color    = TextSecondary,
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-            )
+            // Admin review note (final step only)
+            if (step == lastStep) {
+                Text(
+                    text     = "⚠️ Your listing will be reviewed by an admin before it goes live.",
+                    color    = TextSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                )
+            }
 
             // Error display
             when (val s = submitState) {
@@ -639,6 +730,15 @@ fun PostAdDetailsScreen(
 }
 
 // ── Sub-composables ────────────────────────────────────────────────────────────
+
+/** Section label with a red asterisk marking the field as mandatory. */
+@Composable
+private fun RequiredLabel(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text(" *", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryRed)
+    }
+}
 
 /**
  * Image thumbnail with two overlay actions:

@@ -16,7 +16,7 @@ fun OwnerDashboardScreen(
         subtitle = "Your 6 active listings across Chennai & Bangalore.",
         onBack = onBack,
         state = state,
-        onRefresh = viewModel::load,
+        onRefresh = { viewModel.load(force = true) },
     ) { data ->
         KpiTileGrid(data.tiles)
         BarChartCard("Views by property (last 30 days)", data.viewsByProperty)

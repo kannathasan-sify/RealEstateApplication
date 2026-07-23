@@ -22,6 +22,9 @@ data class MyAdsUiState(
     val deleteSuccess: String? = null,
 )
 
+/** How long the fetched ad list stays fresh before a reload is allowed. */
+private const val MY_ADS_FRESH_MS = 60_000L
+
 @HiltViewModel
 class MyAdsViewModel @Inject constructor(
     private val repo: PropertyRepository,
@@ -42,11 +45,20 @@ class MyAdsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** My Ads is user-scoped, so it is never disk-cached — this in-memory guard just
+     *  stops the same screen session refetching (e.g. on resume) within the window. */
+    private var lastLoadedAt = 0L
+
     init { load() }
 
-    fun load() {
+    fun load(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val hasData = _state.value.properties.isNotEmpty()
+        if (!force && hasData && now - lastLoadedAt < MY_ADS_FRESH_MS) return
+        lastLoadedAt = now
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true, error = null)
+            // Skeleton only on a cold load — a refresh keeps the current ads on screen.
+            _state.value = _state.value.copy(isLoading = !hasData, error = null)
             repo.getMyProperties()
                 .onSuccess { list -> _state.value = _state.value.copy(isLoading = false, properties = list) }
                 .onFailure { e -> _state.value = _state.value.copy(isLoading = false, error = e.message) }

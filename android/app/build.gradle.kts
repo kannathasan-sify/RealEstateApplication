@@ -23,8 +23,8 @@ android {
         applicationId = "com.realestate.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "12.0"
+        versionCode = 13
+        versionName = "13.0"
 
         // Read from local.properties
         val localProps = org.jetbrains.kotlin.konan.properties.loadProperties(

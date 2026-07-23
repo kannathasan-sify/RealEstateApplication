@@ -31,6 +31,29 @@ class PropertyRepository @Inject constructor(
     private val api: ApiService
 ) {
 
+    // ── In-memory property cache ────────────────────────────────────────────────
+    // Seeded from every list response, so opening a property the user just saw in a
+    // list can paint instantly while the detail refreshes from the network behind it.
+    // Process-scoped and public-listing only — nothing user-specific is stored here.
+    private data class CachedProperty(val property: Property, val cachedAt: Long)
+
+    private val propertyCache = java.util.concurrent.ConcurrentHashMap<String, CachedProperty>()
+    private val propertyCacheTtlMs = 5 * 60_000L
+
+    /** Returns a recently-seen property, or null if absent/stale. */
+    fun cachedProperty(id: String): Property? =
+        propertyCache[id]
+            ?.takeIf { System.currentTimeMillis() - it.cachedAt < propertyCacheTtlMs }
+            ?.property
+
+    private fun cacheProperties(items: List<Property>) {
+        val now = System.currentTimeMillis()
+        items.forEach { propertyCache[it.id] = CachedProperty(it, now) }
+    }
+
+    /** Drop cached listings (call on logout / account switch). */
+    fun clearPropertyCache() = propertyCache.clear()
+
     /**
      * Fetch paginated property list with optional filters.
      * [district] = Tamil Nadu district name (e.g. "Karur", "Chennai")
@@ -89,15 +112,17 @@ class PropertyRepository @Inject constructor(
             groundType = groundType,
             page = page,
             limit = limit,
-        )
+        ).also { cacheProperties(it.data) }   // seed cache → instant detail on tap
     }
 
-    suspend fun getFeatured(): Result<List<Property>> = runCatching { api.getFeaturedProperties() }
+    suspend fun getFeatured(): Result<List<Property>> =
+        runCatching { api.getFeaturedProperties().also { cacheProperties(it) } }
 
     suspend fun search(query: String, district: String? = null): Result<List<Property>> =
         runCatching { api.searchProperties(query) }
 
-    suspend fun getProperty(id: String): Result<Property> = runCatching { api.getProperty(id) }
+    suspend fun getProperty(id: String): Result<Property> =
+        runCatching { api.getProperty(id).also { cacheProperties(listOf(it)) } }
 
     suspend fun getSimilar(id: String): Result<List<Property>> = runCatching { api.getSimilarProperties(id) }
 
@@ -125,7 +150,13 @@ class PropertyRepository @Inject constructor(
     suspend fun getMyProperties(approvalStatus: String? = null): Result<List<Property>> =
         runCatching { api.getMyProperties(approvalStatus).data }
 
-    suspend fun deleteProperty(id: String): Result<Unit> = runCatching { api.deleteProperty(id); Unit }
+    suspend fun deleteProperty(id: String): Result<Unit> = runCatching {
+        api.deleteProperty(id)
+        // Evict immediately — otherwise the detail screen could still paint the deleted
+        // listing from the in-memory cache.
+        propertyCache.remove(id)
+        Unit
+    }
 
     suspend fun getSaved(): Result<List<Property>> = runCatching { api.getSavedProperties() }
 
@@ -246,9 +277,10 @@ class PropertyRepository @Inject constructor(
     suspend fun getHomeAds(
         district: String? = null,
         listingType: String? = null,
+        adType: String? = null,
         limit: Int = 10,
     ): Result<List<HomeAd>> = runCatching {
-        api.getHomeAds(district = district, listingType = listingType, limit = limit)
+        api.getHomeAds(district = district, listingType = listingType, adType = adType, limit = limit)
             .map { it.toDomain() }
     }
 

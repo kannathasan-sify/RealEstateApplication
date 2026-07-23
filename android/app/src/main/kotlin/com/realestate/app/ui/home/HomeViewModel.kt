@@ -14,10 +14,16 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/** Home data is considered fresh for this long, so returning to the screen doesn't refetch. */
+private const val FRESH_WINDOW_MS = 60_000L
 
 data class HomeUiState(
     val isLoading: Boolean = false,
@@ -44,16 +50,27 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    /** The district the user has selected in the top-bar picker. */
-    val selectedDistrict: StateFlow<String>
-        get() = MutableStateFlow(_uiState.value.selectedDistrict).also { flow ->
-            viewModelScope.launch {
-                _uiState.collect { flow.value = it.selectedDistrict }
-            }
-        }
+    /**
+     * The district the user has selected in the top-bar picker.
+     *
+     * Derived once and shared. (Previously this was a `get()` that built a NEW
+     * MutableStateFlow and launched a NEW collector coroutine on every access —
+     * one leaked coroutine per read, which on a recomposing screen adds up fast.)
+     */
+    val selectedDistrict: StateFlow<String> = _uiState
+        .map { it.selectedDistrict }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "All TN")
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    /** True while the ad feed is being fetched — drives the skeleton placeholder. */
+    private val _adsLoading = MutableStateFlow(false)
+    val adsLoading: StateFlow<Boolean> = _adsLoading.asStateFlow()
+
+    /** Timestamp of the last successful home load, used to skip redundant refetches. */
+    private var lastLoadedAt = 0L
 
     /** Ranked home advertisements from the server-side Ad Ranking Engine (GET /ads/home). */
     private val _homeAds = MutableStateFlow<List<HomeAd>>(emptyList())
@@ -75,16 +92,30 @@ class HomeViewModel @Inject constructor(
      * Reload all home-feed sections.
      * [district] = "All TN" → no district filter; otherwise filter by district.
      */
-    fun loadHome(district: String = _uiState.value.selectedDistrict) {
+    fun loadHome(district: String = _uiState.value.selectedDistrict, force: Boolean = false) {
+        // Skip redundant work: returning to Home (ON_RESUME) re-triggers this, but if the
+        // district hasn't changed and we loaded recently there's nothing new to fetch.
+        val now = System.currentTimeMillis()
+        val sameDistrict = district == _uiState.value.selectedDistrict
+        if (!force && sameDistrict && now - lastLoadedAt < FRESH_WINDOW_MS) return
+        lastLoadedAt = now
+
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
-                isLoading        = true,
+                isLoading        = false,   // Home no longer renders a loading state
                 selectedDistrict = district,
+                allDistricts     = listOf("All TN") + TamilNaduData.districts,
                 error            = null,
             )
 
             loadHomeAds(district)
 
+            // ── DISABLED: category-wise property sections ────────────────────────
+            // The Rent / Sale / Holiday / Ground / Contractor rows are no longer
+            // rendered on Home, but their fetches were still firing 5 property
+            // requests on every load and district change. Commented out to stop the
+            // unused network calls — re-enable this block if those rows come back.
+            /*
             val districtFilter = if (district == "All TN") null else district
 
             if (BuildConfig.USE_MOCK_DATA) {
@@ -123,6 +154,7 @@ class HomeViewModel @Inject constructor(
                     error                 = if (rentResult.isFailure) rentResult.exceptionOrNull()?.message else null,
                 )
             }
+            */
         }
     }
 
@@ -136,13 +168,21 @@ class HomeViewModel @Inject constructor(
     /** Load the ranked ad feed for the current district (non-critical; failures are ignored). */
     fun loadHomeAds(district: String = _uiState.value.selectedDistrict) {
         viewModelScope.launch {
+            // Only show the skeleton on a cold load — a refresh keeps the current ads
+            // on screen so the feed never flashes empty.
+            if (_homeAds.value.isEmpty()) _adsLoading.value = true
             if (BuildConfig.USE_MOCK_DATA) {
                 _homeAds.value = AdMockData.homeAds
             } else {
                 val districtFilter = if (district == "All TN") null else district
                 repo.getHomeAds(district = districtFilter, listingType = "rent", limit = 10)
-                    .onSuccess { _homeAds.value = it }
+                    // Dev fallback: if the ads table is empty (no seed yet) or the request fails,
+                    // show the sample ads so the feed is never blank. Real ads always win when present.
+                    // TODO(prod): drop the fallback and show an empty state instead.
+                    .onSuccess { _homeAds.value = it.ifEmpty { AdMockData.homeAds } }
+                    .onFailure { _homeAds.value = AdMockData.homeAds }
             }
+            _adsLoading.value = false
         }
     }
 

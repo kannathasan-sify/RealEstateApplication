@@ -85,9 +85,8 @@ fun LeadsScreen(
             val isOwnerTab  = selectedTab == 1
 
             when {
-                isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = NestXBlue)
-                }
+                // Skeleton rows instead of a blocking spinner — instant paint, no jump.
+                isLoading -> com.realestate.app.ui.components.ListSkeleton(count = 5)
 
                 currentList.isEmpty() -> EmptyLeads(isOwnerTab)
 

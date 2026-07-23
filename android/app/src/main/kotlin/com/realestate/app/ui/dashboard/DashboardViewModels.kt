@@ -25,6 +25,14 @@ import javax.inject.Inject
  * replace the mock assignment in each `load()` with the fetch (falling back on failure).
  */
 
+/**
+ * Dashboard payloads are user-scoped, so they are deliberately NOT stored in the OkHttp disk
+ * cache (that would risk serving one account's figures to another). Instead each ViewModel
+ * keeps its result in memory and treats it as fresh for this long, so re-opening a dashboard
+ * doesn't refire the request.
+ */
+private const val DASHBOARD_FRESH_MS = 60_000L
+
 @HiltViewModel
 class OwnerDashboardViewModel @Inject constructor(
     private val repo: PropertyRepository,
@@ -32,11 +40,18 @@ class OwnerDashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<DashboardUiState<OwnerDashboardData>>(DashboardUiState.Loading)
     val uiState: StateFlow<DashboardUiState<OwnerDashboardData>> = _uiState
 
+    private var lastLoadedAt = 0L
+
     init { load() }
 
-    fun load() {
+    fun load(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val hasData = _uiState.value is DashboardUiState.Success
+        if (!force && hasData && now - lastLoadedAt < DASHBOARD_FRESH_MS) return
+        lastLoadedAt = now
         viewModelScope.launch {
-            _uiState.value = DashboardUiState.Loading
+            // Skeleton only on a cold load — a refresh keeps the current figures on screen.
+            if (!hasData) _uiState.value = DashboardUiState.Loading
             if (BuildConfig.USE_MOCK_DATA) {
                 delay(400)
                 _uiState.value = DashboardUiState.Success(DashboardMockData.owner)
@@ -59,11 +74,17 @@ class AgentDashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<DashboardUiState<AgentDashboardData>>(DashboardUiState.Loading)
     val uiState: StateFlow<DashboardUiState<AgentDashboardData>> = _uiState
 
+    private var lastLoadedAt = 0L
+
     init { load() }
 
-    fun load() {
+    fun load(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val hasData = _uiState.value is DashboardUiState.Success
+        if (!force && hasData && now - lastLoadedAt < DASHBOARD_FRESH_MS) return
+        lastLoadedAt = now
         viewModelScope.launch {
-            _uiState.value = DashboardUiState.Loading
+            if (!hasData) _uiState.value = DashboardUiState.Loading
             if (BuildConfig.USE_MOCK_DATA) {
                 delay(400)
                 _uiState.value = DashboardUiState.Success(DashboardMockData.agent)
@@ -86,11 +107,17 @@ class PartnerDashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<DashboardUiState<PartnerDashboardData>>(DashboardUiState.Loading)
     val uiState: StateFlow<DashboardUiState<PartnerDashboardData>> = _uiState
 
+    private var lastLoadedAt = 0L
+
     init { load() }
 
-    fun load() {
+    fun load(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val hasData = _uiState.value is DashboardUiState.Success
+        if (!force && hasData && now - lastLoadedAt < DASHBOARD_FRESH_MS) return
+        lastLoadedAt = now
         viewModelScope.launch {
-            _uiState.value = DashboardUiState.Loading
+            if (!hasData) _uiState.value = DashboardUiState.Loading
             if (BuildConfig.USE_MOCK_DATA) {
                 delay(400)
                 _uiState.value = DashboardUiState.Success(DashboardMockData.partner)
@@ -146,14 +173,21 @@ class AdminAnalyticsDashboardViewModel @Inject constructor(
     private val _partnerState = MutableStateFlow<DashboardUiState<PartnerDashboardData>>(DashboardUiState.Loading)
     val partnerState: StateFlow<DashboardUiState<PartnerDashboardData>> = _partnerState
 
+    private var lastLoadedAt = 0L
+    private var peopleLoaded = false
+
     init {
         load()
         loadPeople()
     }
 
-    fun load() {
+    fun load(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val hasData = _uiState.value is DashboardUiState.Success
+        if (!force && hasData && now - lastLoadedAt < DASHBOARD_FRESH_MS) return
+        lastLoadedAt = now
         viewModelScope.launch {
-            _uiState.value = DashboardUiState.Loading
+            if (!hasData) _uiState.value = DashboardUiState.Loading
             if (BuildConfig.USE_MOCK_DATA) {
                 delay(400)
                 _uiState.value = DashboardUiState.Success(DashboardMockData.admin)
@@ -169,6 +203,10 @@ class AdminAnalyticsDashboardViewModel @Inject constructor(
     }
 
     private fun loadPeople() {
+        // Agent/builder/partner rosters barely change — fetch them once per screen session
+        // instead of 3 extra requests every time the dashboard is opened.
+        if (peopleLoaded) return
+        peopleLoaded = true
         viewModelScope.launch {
             if (BuildConfig.USE_MOCK_DATA) {
                 _agents.value = listOf(AdminPerson("agent-1", "Priya Sharma", true))

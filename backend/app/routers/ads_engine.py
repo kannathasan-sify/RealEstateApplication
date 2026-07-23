@@ -240,6 +240,7 @@ async def home_ads(
     district: Optional[str] = None,
     listing_type: Optional[str] = None,
     property_type: Optional[str] = None,
+    ad_type: Optional[str] = None,        # optional filter, e.g. "construction" for a builders strip
     budget_min: Optional[float] = None,
     budget_max: Optional[float] = None,
     lat: Optional[float] = None,
@@ -263,15 +264,17 @@ async def home_ads(
              .select("ad_id").eq("user_id", uid).eq("action", "hide").execute().data) or []
         hidden = {row["ad_id"] for row in h}
 
-    rows = (supabase.table("advertisements")
-            .select(
-                "*, "
-                "ad_campaigns(bid_amount, daily_budget, remaining_budget, plan, status, revenue_model), "
-                "ad_advertisers(id, name, is_verified, government_approved, rating, "
-                "lead_success_rate, years_in_business)"
-            )
-            .eq("status", "active")
-            .execute().data) or []
+    query = (supabase.table("advertisements")
+             .select(
+                 "*, "
+                 "ad_campaigns(bid_amount, daily_budget, remaining_budget, plan, status, revenue_model), "
+                 "ad_advertisers(id, name, is_verified, government_approved, rating, "
+                 "lead_success_rate, years_in_business)"
+             )
+             .eq("status", "active"))
+    if ad_type:
+        query = query.eq("ad_type", ad_type)
+    rows = query.execute().data or []
 
     ctx = {
         "now": now,

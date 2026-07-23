@@ -7,6 +7,8 @@ import com.google.gson.stream.JsonToken
 import com.google.gson.stream.JsonWriter
 import com.realestate.app.BuildConfig
 import com.realestate.app.data.models.ApprovalStatus
+import okhttp3.Cache
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -60,14 +62,57 @@ object ApiClient {
         })
         .create()
 
-    fun create(authInterceptor: AuthInterceptor): ApiService {
+    /** How long a cacheable GET stays fresh on disk before OkHttp re-validates. */
+    private const val CACHE_MAX_AGE_SECONDS = 120
+
+    /**
+     * Only *public, non-user-specific* GETs may be written to the disk cache.
+     *
+     * OkHttp keys its cache by URL, so caching a user-scoped endpoint would let one
+     * account's data be served to the next account that hits the same URL. Everything
+     * outside this allowlist is explicitly marked `no-store`.
+     *
+     * Excluded on purpose: /auth, /saved, /searches, /bookings, /dashboard, /admin,
+     * /subscriptions, /support, /service-requests (user-scoped) and /ads (personalised +
+     * budget/expiry sensitive — serving a stale ad would be wrong).
+     */
+    private fun isPubliclyCacheable(path: String, method: String): Boolean {
+        if (method != "GET") return false
+        val p = path.lowercase()
+        // User-scoped or fast-changing sub-resources under an otherwise public path.
+        if (p.contains("/mine") || p.contains("/leads") || p.contains("/discussions") ||
+            p.contains("/interests") || p.contains("/analytics")
+        ) return false
+        return p.contains("/properties") || p.contains("/agencies") || p.contains("/reviews")
+    }
+
+    fun create(authInterceptor: AuthInterceptor, cache: Cache?): ApiService {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
                     else HttpLoggingInterceptor.Level.NONE
         }
+
+        // Network interceptor (must be a *network* interceptor to influence caching):
+        // the FastAPI backend doesn't send Cache-Control, so we supply it ourselves.
+        val cacheControl = Interceptor { chain ->
+            val request = chain.request()
+            val response = chain.proceed(request)
+            val directive =
+                if (isPubliclyCacheable(request.url.encodedPath, request.method))
+                    "public, max-age=$CACHE_MAX_AGE_SECONDS"
+                else
+                    "no-store"
+            response.newBuilder()
+                .header("Cache-Control", directive)
+                .removeHeader("Pragma")   // legacy no-cache header would defeat the above
+                .build()
+        }
+
         val client = OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
             .addInterceptor(logging)
+            .addNetworkInterceptor(cacheControl)
+            .apply { if (cache != null) cache(cache) }
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
